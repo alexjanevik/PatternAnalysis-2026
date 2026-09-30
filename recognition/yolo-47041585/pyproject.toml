@@ -1,0 +1,18 @@
+[project]
+name = "YOLO_47041585"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Alex Janevik", email = "ajanevik@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+train = "YOLO_47041585.train:main"
+predict = "YOLO_47041585.predict:main"
