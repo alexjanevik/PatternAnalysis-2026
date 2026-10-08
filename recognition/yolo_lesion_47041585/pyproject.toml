@@ -3,16 +3,20 @@ name = "yolo_lesion_47041585"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Alex Janevik", email = "ajanevik@gmail.com" }
-]
 requires-python = ">=3.12"
-dependencies = []
+authors = [{ name = "Alex Janevik", email = "ajanevik@gmail.com" }]
+dependencies = [
+  "isic-cli>=12.7.0",
+]
+
+[project.scripts]
+download-data = "yolo_lesion_47041585.download_data:main"
+predict = "yolo_lesion_47041585.predict:main"
+train = "yolo_lesion_47041585.train:main"
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
 
-[project.scripts]
-train = "yolo_lesion_47041585.train:main"
-predict = "yolo_lesion_47041585.predict:main"
+[tool.uv]
+exclude-newer = "2026-10-08T16:29:09+10:00"
