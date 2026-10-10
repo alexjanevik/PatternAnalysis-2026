@@ -6,11 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Alex Janevik", email = "ajanevik@gmail.com" }]
 dependencies = [
-  "isic-cli>=12.7.0",
+    "isic-cli>=12.7.0",
 ]
 
 [project.scripts]
-download-data = "yolo_lesion_47041585.download_data:main"
 predict = "yolo_lesion_47041585.predict:main"
 train = "yolo_lesion_47041585.train:main"
 
