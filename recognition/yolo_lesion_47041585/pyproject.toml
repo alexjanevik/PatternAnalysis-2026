@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Alex Janevik", email = "ajanevik@gmail.com" }]
 dependencies = [
-    "isic-cli>=12.7.0",
+    "numpy>=2.5.4",
+    "pillow>=13.0.0",
+    "ultralytics>=8.4.182",
 ]
 
 [project.scripts]
@@ -18,4 +20,4 @@ requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv]
-exclude-newer = "2026-10-10T16:46:03+10:00"
+exclude-newer = "2026-10-20T10:08:17+10:00"
