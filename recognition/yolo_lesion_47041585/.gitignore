@@ -1,3 +1,4 @@
-dataset/
+dataset/*
+!dataset/source/metadata_raw.csv
 .venv/
 __pycache__/
