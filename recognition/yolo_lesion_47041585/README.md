@@ -16,7 +16,7 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 2. **Neck**: Features across the scales are fused to provide context for lesions of different sizes.
 3. **Head**: Bounding boxes and classifications are predicted from the fused features.
 
-**put a training visualisation here, perhaps a gif if i can**
+### put a training visualisation here, perhaps a gif if i can
 
 | \# | Section |
 | --: | :---|
@@ -28,7 +28,7 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 | 6 | [Data Pre-processing](#data-pre-processing) |
 | 7 | [Benchmarks and Results](#benchmarks-and-results) |
 | 7.1 |   [Baseline model](#baseline-model) |
-| 7.2 |   [YOLO11 model](#yolo11-model) |
+| 7.2 |   [Candidate model](#candidate-model) |
 | 7.3 |   [Comparison](#comparison) |
 | 8 | [Resource Profiling](#resource-profiling) |
 | 9 | [Qualitative Error Autopsy](#qualitative-error-autopsy) |
@@ -83,6 +83,32 @@ Experiments will be run using a single NVIDIA A100 GPU via the COMP3710 Slurm pa
 - 2 hours for evaluation and analysis.
 
 The smoke test will measure epoch time and peak VRAM usage to set an epoch limit for the controlled comparisons. If the projected runtime exceeds this budget, the number of experiments will be reduced. YOLO11s or YOLO11m will only be tested if there are resources remaining.
+
+## Project Structure
+
+## Dependencies
+
+## Usage
+
+### Examples
+
+## Data Pre-processing
+
+## Benchmarks and Results
+
+### Baseline model
+
+### Candidate model
+
+### Comparison
+
+## Resource Profiling
+
+## Qualitative Error Autopsy
+
+## Trade-Off Synthesis and Recommendation
+
+## Artificial Intelligence Usage Disclosure
 
 ## References
 
