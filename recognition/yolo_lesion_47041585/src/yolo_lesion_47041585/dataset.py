@@ -11,11 +11,15 @@ the project's README.
 import csv
 import hashlib
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
+from numpy.typing import NDArray
+from PIL import Image, UnidentifiedImageError
 
 # type aliases for the diagnoses
 Diagnosis = Literal["Benign", "Malignant"]
@@ -82,6 +86,77 @@ class CohortResult:
     exclusions: tuple[ExcludedRecord, ...]
     raw_metadata_sha256: str
     input_row_count: int
+
+
+@dataclass(frozen=True)
+class NormalizedBox:
+    """A bounding box derived from a binary mask, in centre format.
+
+    Attributes:
+        x_center (float): Horizontal centre, as a fraction of the image width.
+        y_center (float): Vertical centre, as a fraction of the image height.
+        width (float): Box width, as a fraction of the image width.
+        height (float): Box height, as a fraction of the image height.
+    """
+
+    x_center: float
+    y_center: float
+    width: float
+    height: float
+
+
+@dataclass(frozen=True)
+class AuditIssue:
+    """A blocking issue found when auditing an image/mask pair.
+
+    Attributes:
+        isic_id (str): ISIC ID of the pair with the issue.
+        code (str): Short identifier of the check that failed.
+        detail (str): Explanation of the failure.
+    """
+
+    isic_id: str
+    code: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class AuditedRecord:
+    """A cohort record with its image size, bounding box and file hashes.
+
+    Attributes:
+        record (CohortRecord): The audited cohort record.
+        image_width (int): Image width in pixels.
+        image_height (int): Image height in pixels.
+        box (NormalizedBox): Box around the mask's foreground.
+        image_sha256 (str): SHA-256 of the image file's bytes.
+        mask_sha256 (str): SHA-256 of the mask file's bytes.
+    """
+
+    record: CohortRecord
+    image_width: int
+    image_height: int
+    box: NormalizedBox
+    image_sha256: str
+    mask_sha256: str
+
+
+@dataclass(frozen=True)
+class PairAuditResult:
+    """The audited records and any issues found while auditing the pairs.
+
+    Attributes:
+        records (tuple[AuditedRecord, ...]): Pairs that passed the audit.
+        issues (tuple[AuditIssue, ...]): Issues found, at most one per pair.
+    """
+
+    records: tuple[AuditedRecord, ...]
+    issues: tuple[AuditIssue, ...]
+
+    @property
+    def passed(self) -> bool:
+        """Whether the audit found no issues."""
+        return not self.issues
 
 
 def _index_files(
@@ -285,3 +360,175 @@ def build_cohort(
         raw_metadata_sha256=metadata_hash,
         input_row_count=len(rows),
     )
+
+
+def mask_to_box(mask: NDArray[np.bool_]) -> NormalizedBox:
+    """Convert a binary mask to a normalized bounding box.
+
+    Args:
+        mask (NDArray[np.bool_]): A 2D binary mask where True indicates the lesion.
+
+    Returns:
+        NormalizedBox: The bounding box in normalized coordinates
+            (x_center, y_center, width, height).
+
+    Raises:
+        ValueError: If the mask is not a non-empty 2D boolean array, or has no
+            foreground pixels.
+    """
+    if mask.dtype != np.bool_:
+        raise ValueError(f"Mask must be boolean, got dtype={mask.dtype}")
+    if mask.ndim != 2:
+        raise ValueError(f"Mask must be 2D, got shape={mask.shape}")
+    if mask.size == 0:
+        raise ValueError(f"Mask has a zero-sized axis, got shape={mask.shape}")
+
+    image_height, image_width = mask.shape
+    ys, xs = np.nonzero(mask)
+
+    if xs.size == 0:
+        raise ValueError("Mask has no foreground pixels")
+
+    x_min = int(xs.min())
+    x_max = int(xs.max())
+    y_min = int(ys.min())
+    y_max = int(ys.max())
+
+    # calculate normalized center coordinates
+    x_center = (x_min + x_max + 1) / (2 * image_width)
+    y_center = (y_min + y_max + 1) / (2 * image_height)
+
+    # calculate normalized width and height
+    width = (x_max - x_min + 1) / image_width
+    height = (y_max - y_min + 1) / image_height
+
+    return NormalizedBox(
+        x_center=x_center,
+        y_center=y_center,
+        width=width,
+        height=height,
+    )
+
+
+class _PairIssue(Exception):
+    """A blocking problem with one image/mask pair, raised by _audit_pair.
+
+    Args:
+        code (str): Short identifier of the check that failed.
+        detail (str): Explanation of the failure.
+    """
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code
+        self.detail = detail
+
+
+def _audit_pair(record: CohortRecord, threshold: int) -> AuditedRecord:
+    """Audit one image/mask pair and derive its bounding box.
+
+    Args:
+        record (CohortRecord): The pair to audit.
+        threshold (int): Mask intensity at or above which a pixel is foreground.
+
+    Returns:
+        AuditedRecord: The pair with its image size, box and file hashes.
+
+    Raises:
+        _PairIssue: On the first blocking problem found with the pair.
+    """
+    # read each file once to avoid repeated I/O
+    try:
+        image_bytes = record.image_path.read_bytes()
+        mask_bytes = record.mask_path.read_bytes()
+    except OSError as exc:
+        raise _PairIssue("file_read_error", str(exc)) from exc
+
+    try:
+        with Image.open(BytesIO(image_bytes)) as image:
+            image.load()
+            image_width, image_height = image.size
+
+        with Image.open(BytesIO(mask_bytes)) as mask_image:
+            mask_image.load()
+            mask_mode = mask_image.mode
+            mask = np.array(mask_image)
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        # Pillow's message for unreadable data embeds a memory address, which
+        # would make the issues file differ between runs
+        detail = (
+            "Not a recognisable image file"
+            if isinstance(exc, UnidentifiedImageError)
+            else str(exc)
+        )
+        raise _PairIssue("decode_error", detail) from exc
+
+    # check if 8-bit greycale 2D mask
+    if mask_mode != "L" or mask.ndim != 2:
+        raise _PairIssue(
+            "unexpected_mask_format",
+            f"Expected 2D greyscale mask, got mode={mask_mode}, shape={mask.shape}",
+        )
+
+    # check if image and mask dimensions match
+    mask_height, mask_width = mask.shape
+    if (image_width, image_height) != (mask_width, mask_height):
+        raise _PairIssue(
+            "dimension_mismatch",
+            f"Image={image_width}×{image_height}, mask={mask_width}×{mask_height}.",
+        )
+
+    # check if mask contains any foreground pixels
+    foreground = mask >= threshold
+    if not foreground.any():
+        raise _PairIssue("empty_mask", "Mask contains no foreground pixels.")
+
+    return AuditedRecord(
+        record=record,
+        image_width=image_width,
+        image_height=image_height,
+        box=mask_to_box(foreground),
+        image_sha256=hashlib.sha256(image_bytes).hexdigest(),
+        mask_sha256=hashlib.sha256(mask_bytes).hexdigest(),
+    )
+
+
+def audit_pairs(
+    records: Sequence[CohortRecord], threshold: int = 128
+) -> PairAuditResult:
+    """Audit image/mask pairs for consistency and generate bounding boxes.
+
+    Each pair reports at most one issue, the first blocking problem found.
+    Unexpected errors (e.g. programming bugs) are not caught and will propagate.
+
+    Args:
+        records (Sequence[CohortRecord]): A sequence of CohortRecord objects.
+        threshold (int): Pixel intensity threshold for foreground in the mask, default
+            value chosen due to interpolated 2x upscaling of the original 8-bit masks
+            (default: 128).
+
+    Returns:
+        PairAuditResult: Contains audited records and any errors found during the audit.
+
+    Raises:
+        ValueError: If the threshold is not in the range [1, 255].
+    """
+    if not 1 <= threshold <= 255:
+        raise ValueError(f"Threshold must be in [1, 255], got threshold={threshold}")
+
+    audited: list[AuditedRecord] = []
+    issues: list[AuditIssue] = []
+
+    for record in sorted(records, key=lambda record: record.isic_id):
+        try:
+            audited.append(_audit_pair(record, threshold))
+        except _PairIssue as issue:
+            issues.append(
+                AuditIssue(
+                    isic_id=record.isic_id,
+                    code=issue.code,
+                    detail=issue.detail,
+                )
+            )
+
+    return PairAuditResult(records=tuple(audited), issues=tuple(issues))
