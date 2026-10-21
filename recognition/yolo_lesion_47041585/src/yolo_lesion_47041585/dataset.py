@@ -10,6 +10,7 @@ the project's README.
 
 import csv
 import hashlib
+import random
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -28,6 +29,11 @@ CLASS_MAPPING: Mapping[Diagnosis, ClassId] = {
     "Benign": 0,
     "Malignant": 1,
 }
+
+# split names matching the keys YOLO dataset YAML files use
+Split = Literal["train", "val", "test"]
+SPLITS: tuple[Split, ...] = ("train", "val", "test")
+DEFAULT_SPLIT_RATIOS: Mapping[Split, float] = {"train": 0.70, "val": 0.15, "test": 0.15}
 
 
 @dataclass(frozen=True)
@@ -157,6 +163,32 @@ class PairAuditResult:
     def passed(self) -> bool:
         """Whether the audit found no issues."""
         return not self.issues
+
+
+@dataclass(frozen=True)
+class SplitRecord:
+    """An audited record assigned to a split, with its independence group.
+
+    Attributes:
+        audited (AuditedRecord): The audited record.
+        group_id (str): ID of the independence group the record belongs to.
+        split (Split): The split the record is assigned to.
+    """
+
+    audited: AuditedRecord
+    group_id: str
+    split: Split
+
+
+@dataclass(frozen=True)
+class SplitManifest:
+    """Every record's split assignment.
+
+    Attributes:
+        records (tuple[SplitRecord, ...]): One entry per record, ordered by ISIC ID.
+    """
+
+    records: tuple[SplitRecord, ...]
 
 
 def _index_files(
@@ -532,3 +564,142 @@ def audit_pairs(
             )
 
     return PairAuditResult(records=tuple(audited), issues=tuple(issues))
+
+
+def build_independence_groups(records: Sequence[AuditedRecord]) -> dict[str, str]:
+    """Group records that must stay together in a single split.
+
+    A group is all of one patient's records, identified by the smallest ISIC ID
+    among them. Lesion IDs are not used to link patients: a lesion ID recorded
+    under more than one patient is contradictory, so it raises for review.
+
+    Args:
+        records (Sequence[AuditedRecord]): Audited records to group.
+
+    Returns:
+        dict[str, str]: A group ID for every ISIC ID.
+
+    Raises:
+        ValueError: If an ISIC ID appears more than once, or a lesion ID is recorded
+            under more than one patient.
+    """
+    group_by_id: dict[str, str] = {}
+    first_id_by_patient: dict[str, str] = {}
+    patients_by_lesion: dict[str, set[str]] = {}
+
+    # in ISIC ID order, so a patient's first record is its smallest ID
+    for audited in sorted(records, key=lambda a: a.record.isic_id):
+        record = audited.record
+
+        if record.isic_id in group_by_id:
+            raise ValueError(f"Duplicate ISIC ID: {record.isic_id}")
+
+        group_id = first_id_by_patient.setdefault(record.patient_id, record.isic_id)
+        group_by_id[record.isic_id] = group_id
+
+        if record.lesion_id is not None:
+            patients_by_lesion.setdefault(record.lesion_id, set()).add(
+                record.patient_id
+            )
+
+    conflicts = {
+        lesion_id: sorted(patients)
+        for lesion_id, patients in sorted(patients_by_lesion.items())
+        if len(patients) > 1
+    }
+    if conflicts:
+        raise ValueError(f"Lesion IDs under more than one patient: {conflicts}")
+
+    return group_by_id
+
+
+def make_grouped_splits(
+    records: Sequence[AuditedRecord],
+    groups: Mapping[str, str],
+    seed: int,
+    ratios: Mapping[Split, float] = DEFAULT_SPLIT_RATIOS,
+) -> SplitManifest:
+    """Assign whole independence groups to train, val and test splits.
+
+    Groups are placed largest first, each into the split whose image, benign and
+    malignant counts it brings closest to their targets. Groups are never divided,
+    so group separation takes precedence over exact ratios. Model performance is
+    never used.
+
+    Args:
+        records (Sequence[AuditedRecord]): Audited records to split.
+        groups (Mapping[str, str]): Group ID for every ISIC ID.
+        seed (int): Seed for tie-breaking between equally sized groups.
+        ratios (Mapping[Split, float]): Target fraction of images per split, which
+            must sum to 1 (default: 70/15/15).
+
+    Returns:
+        SplitManifest: One split assignment per record, ordered by ISIC ID.
+
+    Raises:
+        ValueError: If the ratios are invalid, an ISIC ID is duplicated or has no
+            group, the records lack a class, or a split ends up without both classes.
+    """
+    if set(ratios) != set(SPLITS) or any(r <= 0 for r in ratios.values()):
+        raise ValueError(f"Ratios must be positive and cover {SPLITS}: {dict(ratios)}")
+    if abs(sum(ratios.values()) - 1) > 1e-9:
+        raise ValueError(f"Ratios must sum to 1, got {sum(ratios.values())}")
+
+    ids = [audited.record.isic_id for audited in records]
+    if len(set(ids)) != len(ids):
+        raise ValueError("Duplicate ISIC IDs in records")
+    if missing := sorted(set(ids) - set(groups)):
+        raise ValueError(f"Records without a group: {missing[:5]}")
+
+    # count images, benign and malignant records per group
+    group_counts: dict[str, np.ndarray] = {}
+    for audited in records:
+        counts = group_counts.setdefault(groups[audited.record.isic_id], np.zeros(3))
+        counts += (1, audited.record.class_id == 0, audited.record.class_id == 1)
+
+    # check that both classes are present in the dataset
+    # creates empty totals array first to avoid dtype issues
+    totals = sum(group_counts.values(), start=np.zeros(3))
+    if totals[1] == 0 or totals[2] == 0:
+        raise ValueError(f"Records must include both classes, got {totals[1:]}")
+    targets = {split: ratios[split] * totals for split in SPLITS}
+    current = {split: np.zeros(3) for split in SPLITS}
+
+    # relative squared deviation from target counts for a split
+    def deviation(split: Split, counts: np.ndarray) -> float:
+        # squared deviation from target, relative so the rarer malignant class counts
+        # as much as the images total
+        return float((((counts - targets[split]) / targets[split]) ** 2).sum())
+
+    # largest groups first. ties are broken by the seed
+    order = sorted(group_counts)
+    random.Random(seed).shuffle(order)
+    order.sort(key=lambda group_id: -group_counts[group_id][0])
+
+    split_by_group: dict[str, Split] = {}
+    for group_id in order:
+        # compare how much each split's deviation would change if this group is added
+        split_by_group[group_id] = min(
+            SPLITS,
+            key=lambda split: (
+                deviation(split, current[split] + group_counts[group_id])
+                - deviation(split, current[split])
+            ),
+        )
+        current[split_by_group[group_id]] += group_counts[group_id]
+
+    # ensure that each split has at least one record from each class
+    for split in SPLITS:
+        if current[split][1] == 0 or current[split][2] == 0:
+            raise ValueError(f"Split '{split}' is missing a class: {current[split]}")
+
+    return SplitManifest(
+        records=tuple(
+            SplitRecord(
+                audited=audited,
+                group_id=groups[audited.record.isic_id],
+                split=split_by_group[groups[audited.record.isic_id]],
+            )
+            for audited in sorted(records, key=lambda a: a.record.isic_id)
+        ),
+    )
