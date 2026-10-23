@@ -12,7 +12,7 @@ import csv
 import hashlib
 import random
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -703,3 +703,149 @@ def make_grouped_splits(
             for audited in sorted(records, key=lambda a: a.record.isic_id)
         ),
     )
+
+
+def validate_split_manifest(
+    manifest: SplitManifest,
+    expected_records: Sequence[AuditedRecord],
+) -> tuple[str, ...]:
+    """Check a split manifest against the audited cohort it should cover.
+
+    The expected records are a separate input because a manifest cannot prove its
+    own completeness. Every violation is collected, not just the first.
+
+    Args:
+        manifest (SplitManifest): The split assignment to check.
+        expected_records (Sequence[AuditedRecord]): The audited cohort, which the
+            manifest must cover exactly once each and without altering.
+
+    Returns:
+        tuple[str, ...]: A description of each violation. Empty if the manifest is valid.
+
+    Raises:
+        ValueError: If the expected records contain a duplicate ISIC ID.
+    """
+    expected = {audited.record.isic_id: audited for audited in expected_records}
+    if len(expected) != len(expected_records):
+        raise ValueError("Duplicate ISIC IDs in expected records")
+
+    violations: list[str] = []
+
+    # every expected record appears exactly once, and nothing else does
+    assigned = Counter(r.audited.record.isic_id for r in manifest.records)
+    for isic_id in sorted(set(expected) - set(assigned)):
+        violations.append(f"{isic_id}: missing from the manifest")
+    for isic_id in sorted(set(assigned) - set(expected)):
+        violations.append(f"{isic_id}: not in the audited cohort")
+    for isic_id, times in sorted(assigned.items()):
+        if times > 1:
+            violations.append(f"{isic_id}: assigned {times} times")
+
+    for entry in manifest.records:
+        if entry.split not in SPLITS:
+            violations.append(
+                f"{entry.audited.record.isic_id}: invalid split '{entry.split}'"
+            )
+
+        isic_id = entry.audited.record.isic_id
+
+        # the manifest must not alter paths, class, hashes or box
+        if isic_id in expected and entry.audited != expected[isic_id]:
+            violations.append(f"{isic_id}: differs from its audited record")
+
+    def check_not_shared(kind: str, keyed: Iterable[tuple[str, Split]]) -> None:
+        splits_by_key: dict[str, set[Split]] = {}
+        for key, split in keyed:
+            splits_by_key.setdefault(key, set()).add(split)
+        for key, splits in sorted(splits_by_key.items()):
+            if len(splits) > 1:
+                violations.append(f"{kind} {key} appears in splits {sorted(splits)}")
+
+    # nothing that links two records may be split between them
+    check_not_shared(
+        "patient", ((e.audited.record.patient_id, e.split) for e in manifest.records)
+    )
+    check_not_shared(
+        "lesion",
+        (
+            (e.audited.record.lesion_id, e.split)
+            for e in manifest.records
+            if e.audited.record.lesion_id is not None
+        ),
+    )
+    check_not_shared("group", ((e.group_id, e.split) for e in manifest.records))
+    check_not_shared(
+        "image hash", ((e.audited.image_sha256, e.split) for e in manifest.records)
+    )
+
+    for split in SPLITS:
+        classes = {
+            e.audited.record.class_id for e in manifest.records if e.split == split
+        }
+        if classes != {0, 1}:
+            violations.append(
+                f"split {split} is missing a class: has {sorted(classes)}"
+            )
+
+    return tuple(violations)
+
+
+def export_yolo_dataset(manifest: SplitManifest, destination: Path) -> Path:
+    """Export a split manifest as a YOLO detection dataset.
+
+    Images are symlinked, not copied, into `images/<split>/` and each gets a label
+    file in `labels/<split>/`, since YOLO finds a label by swapping the last
+    `/images/` in the image path for `/labels/`. Nothing is duplicated or
+    oversampled. The symlinks point at this machine's source images, so generate
+    the export where it will be used.
+
+    Args:
+        manifest (SplitManifest): The split assignment to export. The caller should
+            also have checked it covers the audited cohort, which the manifest
+            cannot prove itself.
+        destination (Path): Directory to create the export in. Must be new or empty.
+
+    Returns:
+        Path: The dataset YAML. It has no `path:` key, so YOLO resolves the splits
+            from the YAML file's own folder and the export can be moved.
+
+    Raises:
+        ValueError: If the manifest fails validation against itself.
+        FileExistsError: If the destination already holds files.
+    """
+    if violations := validate_split_manifest(
+        manifest, [e.audited for e in manifest.records]
+    ):
+        raise ValueError(f"Split manifest is invalid: {violations[:3]}")
+
+    if destination.exists() and any(destination.iterdir()):
+        raise FileExistsError(f"Export destination is not empty: {destination}")
+
+    for entry in manifest.records:
+        record, box = entry.audited.record, entry.audited.box
+
+        # create the split directories for images and labels
+        image_dir = destination / "images" / entry.split
+        label_dir = destination / "labels" / entry.split
+        image_dir.mkdir(parents=True, exist_ok=True)
+        label_dir.mkdir(parents=True, exist_ok=True)
+
+        # create a symlink to the image in the split's image directory
+        image_link = image_dir / f"{record.isic_id}{record.image_path.suffix}"
+        image_link.symlink_to(record.image_path.resolve())
+
+        # YOLO label row: class_id x_center y_center width height
+        (label_dir / f"{record.isic_id}.txt").write_text(
+            f"{record.class_id} {box.x_center:.6f} {box.y_center:.6f} "
+            f"{box.width:.6f} {box.height:.6f}\n"
+        )
+
+    names = "\n".join(
+        f"  {class_id}: {diagnosis}"
+        for diagnosis, class_id in sorted(CLASS_MAPPING.items(), key=lambda i: i[1])
+    )
+    yaml_path = destination / "dataset.yaml"
+    yaml_path.write_text(
+        f"train: images/train\nval: images/val\ntest: images/test\nnames:\n{names}\n"
+    )
+    return yaml_path
