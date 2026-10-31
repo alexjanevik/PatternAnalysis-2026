@@ -8,11 +8,11 @@ diagnostic behind. The script stops when the audit, grouping or split validation
 The output directory must be new or empty to allow comparings reruns.
 
 Usage:
-    uv run python scripts/audit_dataset.py [--source DIR] [--output DIR]
+    uv run python -m yolo_lesion_47041585.audit [--source DIR] [--output DIR]
 
     or;
 
-    python scripts/audit_dataset.py [--source DIR] [--output DIR]
+    python -m yolo_lesion_47041585.audit [--source DIR] [--output DIR]
 """
 
 import argparse
@@ -39,7 +39,7 @@ from yolo_lesion_47041585.dataset import (
     validate_split_manifest,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPLIT_SEED = 47041585
 MASK_THRESHOLD = 128
 

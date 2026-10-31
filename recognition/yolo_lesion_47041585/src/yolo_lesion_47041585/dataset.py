@@ -3,7 +3,7 @@ ISIC2018 data pipeline: cohort, pair audit, patient split and YOLO export.
 
 Reusable dataset logic is contained here. The stages run in order (build_cohort,
 audit_pairs, build_independence_groups, make_grouped_splits, validate_split_manifest,
-export_yolo_dataset) and are driven by scripts/audit_dataset.py, which also decides the
+export_yolo_dataset) and are driven by audit.py, which also decides the
 split seed and mask threshold. Detailed reasoning of the data decisions can be found in
 the project's README.
 """
