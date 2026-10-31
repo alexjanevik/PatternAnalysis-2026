@@ -195,33 +195,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
         # 2. pair audit: decode every pair and derive its box
-        audit = audit_pairs(cohort.records, MASK_THRESHOLD)
-        write_csv(
-            output / "pair_audit_issues.csv",
-            ("isic_id", "code", "detail"),
-            ((i.isic_id, i.code, i.detail) for i in audit.issues),
-        )
-        save(
-            "audit",
-            audited=len(audit.records),
-            audit_issues=dict(Counter(i.code for i in audit.issues)),
-        )
-        if not audit.passed:
-            return stop(
-                f"{len(audit.issues)} image/mask pair(s) failed the audit, see "
-                "pair_audit_issues.csv."
-            )
+        audited = audit_pairs(cohort.records, MASK_THRESHOLD)
+        save("audit", audited=len(audited))
 
         # 3. groups: records that share a patient must stay together
-        groups = build_independence_groups(audit.records)
+        groups = build_independence_groups(audited)
         save(
             "groups",
-            patients=len({a.record.patient_id for a in audit.records}),
+            patients=len({a.record.patient_id for a in audited}),
             groups=len(set(groups.values())),
         )
 
         # 4. split, then check the split independently
-        manifest = make_grouped_splits(audit.records, groups, SPLIT_SEED)
+        manifest = make_grouped_splits(audited, groups, SPLIT_SEED)
         write_csv(
             output / "split_manifest.csv",
             (
@@ -262,7 +248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for e in manifest.records
             ),
         )
-        violations = validate_split_manifest(manifest, audit.records)
+        violations = validate_split_manifest(manifest, audited)
         save(
             "split",
             split_manifest_sha256=hashlib.sha256(

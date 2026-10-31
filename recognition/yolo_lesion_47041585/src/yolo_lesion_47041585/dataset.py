@@ -112,21 +112,6 @@ class NormalizedBox:
 
 
 @dataclass(frozen=True)
-class AuditIssue:
-    """A blocking issue found when auditing an image/mask pair.
-
-    Attributes:
-        isic_id (str): ISIC ID of the pair with the issue.
-        code (str): Short identifier of the check that failed.
-        detail (str): Explanation of the failure.
-    """
-
-    isic_id: str
-    code: str
-    detail: str
-
-
-@dataclass(frozen=True)
 class AuditedRecord:
     """A cohort record with its image size, bounding box and file hashes.
 
@@ -145,24 +130,6 @@ class AuditedRecord:
     box: NormalizedBox
     image_sha256: str
     mask_sha256: str
-
-
-@dataclass(frozen=True)
-class PairAuditResult:
-    """The audited records and any issues found while auditing the pairs.
-
-    Attributes:
-        records (tuple[AuditedRecord, ...]): Pairs that passed the audit.
-        issues (tuple[AuditIssue, ...]): Issues found, at most one per pair.
-    """
-
-    records: tuple[AuditedRecord, ...]
-    issues: tuple[AuditIssue, ...]
-
-    @property
-    def passed(self) -> bool:
-        """Whether the audit found no issues."""
-        return not self.issues
 
 
 @dataclass(frozen=True)
@@ -442,20 +409,6 @@ def mask_to_box(mask: NDArray[np.bool_]) -> NormalizedBox:
     )
 
 
-class _PairIssue(Exception):
-    """A blocking problem with one image/mask pair, raised by _audit_pair.
-
-    Args:
-        code (str): Short identifier of the check that failed.
-        detail (str): Explanation of the failure.
-    """
-
-    def __init__(self, code: str, detail: str):
-        super().__init__(detail)
-        self.code = code
-        self.detail = detail
-
-
 def _audit_pair(record: CohortRecord, threshold: int) -> AuditedRecord:
     """Audit one image/mask pair and derive its bounding box.
 
@@ -467,14 +420,14 @@ def _audit_pair(record: CohortRecord, threshold: int) -> AuditedRecord:
         AuditedRecord: The pair with its image size, box and file hashes.
 
     Raises:
-        _PairIssue: On the first blocking problem found with the pair.
+        ValueError: On the first blocking problem found with the pair.
     """
     # read each file once to avoid repeated I/O
     try:
         image_bytes = record.image_path.read_bytes()
         mask_bytes = record.mask_path.read_bytes()
     except OSError as exc:
-        raise _PairIssue("file_read_error", str(exc)) from exc
+        raise ValueError(f"{record.isic_id}: could not read files: {exc}") from exc
 
     try:
         with Image.open(BytesIO(image_bytes)) as image:
@@ -486,34 +439,33 @@ def _audit_pair(record: CohortRecord, threshold: int) -> AuditedRecord:
             mask_mode = mask_image.mode
             mask = np.array(mask_image)
     except (UnidentifiedImageError, OSError, ValueError) as exc:
-        # Pillow's message for unreadable data embeds a memory address, which
-        # would make the issues file differ between runs
+        # Pillow's message for unreadable data embeds a memory address
         detail = (
-            "Not a recognisable image file"
+            "not a recognisable image file"
             if isinstance(exc, UnidentifiedImageError)
             else str(exc)
         )
-        raise _PairIssue("decode_error", detail) from exc
+        raise ValueError(f"{record.isic_id}: could not decode files: {detail}") from exc
 
     # check if 8-bit greycale 2D mask
     if mask_mode != "L" or mask.ndim != 2:
-        raise _PairIssue(
-            "unexpected_mask_format",
-            f"Expected 2D greyscale mask, got mode={mask_mode}, shape={mask.shape}",
+        raise ValueError(
+            f"{record.isic_id}: expected 2D greyscale mask, got mode={mask_mode}, "
+            f"shape={mask.shape}"
         )
 
     # check if image and mask dimensions match
     mask_height, mask_width = mask.shape
     if (image_width, image_height) != (mask_width, mask_height):
-        raise _PairIssue(
-            "dimension_mismatch",
-            f"Image={image_width}×{image_height}, mask={mask_width}×{mask_height}.",
+        raise ValueError(
+            f"{record.isic_id}: image is {image_width}×{image_height} but mask is "
+            f"{mask_width}×{mask_height}"
         )
 
     # check if mask contains any foreground pixels
     foreground = mask >= threshold
     if not foreground.any():
-        raise _PairIssue("empty_mask", "Mask contains no foreground pixels.")
+        raise ValueError(f"{record.isic_id}: mask contains no foreground pixels")
 
     return AuditedRecord(
         record=record,
@@ -527,11 +479,11 @@ def _audit_pair(record: CohortRecord, threshold: int) -> AuditedRecord:
 
 def audit_pairs(
     records: Sequence[CohortRecord], threshold: int = 128
-) -> PairAuditResult:
+) -> tuple[AuditedRecord, ...]:
     """Audit image/mask pairs for consistency and generate bounding boxes.
 
-    Each pair reports at most one issue, the first blocking problem found.
-    Unexpected errors (e.g. programming bugs) are not caught and will propagate.
+    Stops at the first pair that fails a check. Unexpected errors (e.g. programming
+    bugs) are not caught and will propagate.
 
     Args:
         records (Sequence[CohortRecord]): A sequence of CohortRecord objects.
@@ -540,30 +492,20 @@ def audit_pairs(
             (default: 128).
 
     Returns:
-        PairAuditResult: Contains audited records and any errors found during the audit.
+        tuple[AuditedRecord, ...]: The audited records, ordered by ISIC ID.
 
     Raises:
-        ValueError: If the threshold is not in the range [1, 255].
+        ValueError: If the threshold is not in the range [1, 255], or if a pair can't
+            be read, has an unexpected mask format, has mismatched dimensions or has
+            an empty mask.
     """
     if not 1 <= threshold <= 255:
         raise ValueError(f"Threshold must be in [1, 255], got threshold={threshold}")
 
-    audited: list[AuditedRecord] = []
-    issues: list[AuditIssue] = []
-
-    for record in sorted(records, key=lambda record: record.isic_id):
-        try:
-            audited.append(_audit_pair(record, threshold))
-        except _PairIssue as issue:
-            issues.append(
-                AuditIssue(
-                    isic_id=record.isic_id,
-                    code=issue.code,
-                    detail=issue.detail,
-                )
-            )
-
-    return PairAuditResult(records=tuple(audited), issues=tuple(issues))
+    return tuple(
+        _audit_pair(record, threshold)
+        for record in sorted(records, key=lambda record: record.isic_id)
+    )
 
 
 def build_independence_groups(records: Sequence[AuditedRecord]) -> dict[str, str]:
