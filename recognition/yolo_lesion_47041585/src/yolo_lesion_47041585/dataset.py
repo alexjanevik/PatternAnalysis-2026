@@ -431,7 +431,7 @@ def _audit_pair(record: CohortRecord, threshold: int) -> AuditedRecord:
 
     try:
         with Image.open(BytesIO(image_bytes)) as image:
-            image.load()
+            # image.load()
             image_width, image_height = image.size
 
         with Image.open(BytesIO(mask_bytes)) as mask_image:
