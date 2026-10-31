@@ -2,7 +2,7 @@
 Training entry point: resolve configs, run one experiment, record its provenance.
 
 Normal runs train and validate only. Test evaluation lives behind the guarded path in
-evaluation.py, to be used once the selection manifest is frozen.
+helpers/evaluation.py, to be used once the selection manifest is frozen.
 
 Usage:
     uv run train --config configs/base.yaml --config configs/b0.yaml [--pilot]
