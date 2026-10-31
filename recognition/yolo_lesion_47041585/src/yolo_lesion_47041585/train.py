@@ -16,6 +16,9 @@ from typing import Any, cast
 import yaml
 
 
+SAMPLING_SCHEMES = ("stock", "replacement")
+
+
 def _merge(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
     """Recursively merge `override` into a copy of `base`."""
     merged = dict(base)
@@ -45,6 +48,11 @@ def resolve_training_config(
     config: dict[str, Any] = {}
     for path in config_paths:
         config = _merge(config, yaml.safe_load(path.read_text()) or {})
+    sampling = config["sampling"]
+    if sampling["scheme"] not in SAMPLING_SCHEMES:
+        raise ValueError(f"Unknown sampling scheme: {sampling['scheme']!r}")
+    if sampling["scheme"] == "stock" and sampling["malignant_fraction"] is not None:
+        raise ValueError("The stock loader cannot sample to a malignant fraction.")
     if pilot:
         config["pilot"] = True
         config["train"]["epochs"] = 2

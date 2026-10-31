@@ -1,2 +1,2 @@
-# A0: modest augmentation (base.yaml defaults), natural sampling.
+# A0: modest augmentation (base.yaml defaults), natural class balance drawn with replacement.
 condition: A0

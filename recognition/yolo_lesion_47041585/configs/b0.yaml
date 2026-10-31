@@ -1,5 +1,8 @@
-# B0: no random augmentation, natural sampling.
+# B0: no random augmentation, plain Ultralytics shuffling. Reference only: it differs from A0
+# in both augmentation and sampling scheme, so do not read B0 vs A0 as an augmentation effect.
 condition: B0
+sampling:
+  scheme: stock
 augment:
   hsv_h: 0.0
   hsv_s: 0.0
