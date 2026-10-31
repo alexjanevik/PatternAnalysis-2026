@@ -1,7 +1,77 @@
-def main():
-    print("main() in train.py")
+"""
+Training entry point: resolve configs, run one experiment, record its provenance.
+
+Normal runs train and validate only. Test evaluation lives behind the guarded path in
+evaluation.py, to be used once the selection manifest is frozen.
+
+Usage:
+    uv run train --config configs/base.yaml --config configs/b0.yaml [--pilot]
+"""
+
+import argparse
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+def _merge(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
+    """Recursively merge `override` into a copy of `base`."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
+            merged[key] = _merge(dict(merged[key]), value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def resolve_training_config(
+    config_paths: Sequence[Path], pilot: bool = False
+) -> dict[str, Any]:
+    """Merge YAML configs left to right into one fully resolved config.
+
+    Args:
+        config_paths (Sequence[Path]): Base config first, then the condition override.
+        pilot (bool): Shorten the run for the smoke test and label it as a pilot.
+
+    Returns:
+        dict[str, Any]: The resolved config, to be saved with the run.
+    """
+    config: dict[str, Any] = {}
+    for path in config_paths:
+        config = _merge(config, yaml.safe_load(path.read_text()) or {})
+    if pilot:
+        config["pilot"] = True
+        config["train"]["epochs"] = 2
+    return config
+
+
+def collect_run_metadata(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Provenance for a run: source revision, split hash, package/CUDA/GPU versions,
+    starting-checkpoint hash and seed."""
+    raise NotImplementedError("TODO")
+
+
+def run_experiment(config: Mapping[str, Any]) -> Path:
+    """Train and validate one condition and return its run directory.
+
+    Should build the detector, attach the sampler to LesionDetectionTrainer, train with
+    best-checkpoint selection on validation mAP50:95 (earliest epoch on ties), and save
+    the resolved config, metadata and history under runs/.
+    """
+    raise NotImplementedError("TODO")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, action="append", required=True)
+    parser.add_argument("--pilot", action="store_true", help="short smoke-test run")
+    args = parser.parse_args()
+    run_experiment(resolve_training_config(args.config, args.pilot))
     return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

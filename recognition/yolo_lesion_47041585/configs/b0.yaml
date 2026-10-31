@@ -1,0 +1,11 @@
+# B0: no random augmentation, natural sampling.
+condition: B0
+augment:
+  hsv_h: 0.0
+  hsv_s: 0.0
+  hsv_v: 0.0
+  translate: 0.0
+  scale: 0.0
+  flipud: 0.0
+  fliplr: 0.0
+  auto_augment: null

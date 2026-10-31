@@ -849,3 +849,44 @@ def export_yolo_dataset(manifest: SplitManifest, destination: Path) -> Path:
         f"train: images/train\nval: images/val\ntest: images/test\nnames:\n{names}\n"
     )
     return yaml_path
+
+
+# --- Training loader and sampling ---------------------------------------------
+
+
+def build_sampling_weights(
+    records: Sequence[SplitRecord], target_fraction: float | None
+) -> NDArray[np.float64]:
+    """Per-image draw weights giving the requested expected malignant fraction.
+
+    Args:
+        records (Sequence[SplitRecord]): The training split's records only.
+        target_fraction (float | None): Expected malignant share of each epoch, or None
+            for natural sampling (uniform weights).
+
+    Returns:
+        NDArray[np.float64]: One weight per record, summing to 1.
+    """
+    raise NotImplementedError("TODO: weights from class counts")
+
+
+class EpochSampler:
+    """Fixed-length weighted sampler reseeded each epoch (seed + epoch).
+
+    Epoch length stays equal to the training split size so every condition sees the same
+    number of optimizer steps. Draws are with replacement.
+    """
+
+    def __init__(
+        self, weights: NDArray[np.float64], length: int, seed: int
+    ) -> None:
+        raise NotImplementedError("TODO")
+
+    def set_epoch(self, epoch: int) -> None:
+        raise NotImplementedError("TODO")
+
+    def __iter__(self):
+        raise NotImplementedError("TODO")
+
+    def __len__(self) -> int:
+        raise NotImplementedError("TODO")

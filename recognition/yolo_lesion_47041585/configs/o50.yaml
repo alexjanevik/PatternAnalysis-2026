@@ -1,0 +1,4 @@
+# O50: A0 augmentation, 50% malignant sampling.
+condition: O50
+sampling:
+  malignant_fraction: 0.50

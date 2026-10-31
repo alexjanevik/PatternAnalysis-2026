@@ -1,0 +1,4 @@
+# O35: A0 augmentation, 35% malignant sampling.
+condition: O35
+sampling:
+  malignant_fraction: 0.35

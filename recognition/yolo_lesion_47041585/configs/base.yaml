@@ -1,0 +1,56 @@
+# Shared settings for every controlled run.
+# Condition files override a few keys.
+condition: base
+seed: 47041585
+data: artifacts/isic2018/yolo/dataset.yaml
+split_manifest: artifacts/isic2018/split_manifest.csv
+model: yolo11n.pt
+classes: [Benign, Malignant]
+
+train:
+  imgsz: 640
+  batch: 16
+  epochs: 100
+  patience: 0 # no early stopping in controlled runs
+  optimizer: AdamW # explicit, so "auto" cannot choose for us
+  lr0: 0.001
+  lrf: 0.01
+  cos_lr: false # linear schedule
+  momentum: 0.9 # AdamW beta1
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  freeze: null # fine-tune all layers
+  amp: true
+  nbs: 16 # nominal batch = batch, so no gradient accumulation
+  workers: 8
+  rect: false
+  deterministic: true
+
+# Ultralytics augmentation defaults must be set explicitly.
+# b0.yaml turns every one of them off.
+augment:
+  hsv_h: 0.015
+  hsv_s: 0.4
+  hsv_v: 0.4
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.2
+  shear: 0.0
+  perspective: 0.0
+  flipud: 0.5
+  fliplr: 0.5
+  mosaic: 0.0
+  mixup: 0.0
+  cutmix: 0.0
+  copy_paste: 0.0
+  erasing: 0.0
+  auto_augment: null
+
+sampling:
+  malignant_fraction: null # null = natural class balance
+  epoch_length: null # null = len(train split)
+
+inference:
+  conf: 0.001
+  iou: 0.7 # class-aware NMS
+  max_det: 100
