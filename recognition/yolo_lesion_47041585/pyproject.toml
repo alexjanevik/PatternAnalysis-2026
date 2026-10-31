@@ -8,6 +8,7 @@ authors = [{ name = "Alex Janevik", email = "ajanevik@gmail.com" }]
 dependencies = [
     "numpy>=2.5.4",
     "pillow>=13.0.0",
+    "rich>=15.0.0",
     "ultralytics>=8.4.182",
 ]
 

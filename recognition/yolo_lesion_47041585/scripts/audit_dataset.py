@@ -25,6 +25,9 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
+from rich.console import Console
+from rich.table import Table
+
 from yolo_lesion_47041585.dataset import (
     SPLITS,
     SplitManifest,
@@ -139,6 +142,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Stopped: {reason}", file=sys.stderr)
         return 1
 
+    # a spinner shows the current stage; each finished stage is printed with a tick
+    console = Console()
+    status = console.status("")
+    current = ""
+
+    def stage(label: str | None = None) -> None:
+        nonlocal current
+        if current:
+            console.print(f"[green]✓[/green] {current}")
+        current = label or ""
+        if label:
+            status.update(label)
+
+    status.start()
+    stage("Building cohort...")
+
     try:
         # 1. cohort: filter the raw metadata and pair images with masks
         cohort = build_cohort(
@@ -195,10 +214,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
         # 2. pair audit: decode every pair and derive its box
+        stage("Auditing image/mask pairs...")
         audited = audit_pairs(cohort.records, MASK_THRESHOLD)
         save("audit", audited=len(audited))
 
         # 3. groups: records that share a patient must stay together
+        stage("Grouping by patient...")
         groups = build_independence_groups(audited)
         save(
             "groups",
@@ -207,6 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
         # 4. split, then check the split independently
+        stage("Splitting...")
         manifest = make_grouped_splits(audited, groups, SPLIT_SEED)
         write_csv(
             output / "split_manifest.csv",
@@ -258,18 +280,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             split_violations=list(violations),
         )
         if violations:
+            status.stop()
             return stop(f"{len(violations)} split violation(s), see summary.json")
 
         # 5. export the verified split for YOLO
+        stage("Exporting YOLO dataset...")
         yaml_path = export_yolo_dataset(manifest, output / "yolo")
         save("export", status="complete", dataset_yaml=yaml_path)
+        stage()
 
     except ValueError as exc:
         # expected failures, such as bad roots, missing columns or a lesion under two patients
         return stop(str(exc))
+    finally:
+        status.stop()
 
-    print(json.dumps({k: summary[k] for k in ("retained", "splits")}, indent=2))
-    print(f"Done. Artifacts written to {output}")
+    table = Table(title=f"Cohort: {summary['retained']} images retained")
+    table.add_column("Split", style="bold")
+    for column in ("Images", "Patients", "Groups", "Benign", "Malignant"):
+        table.add_column(column, justify="right")
+    for split, info in summary["splits"].items():
+        table.add_row(
+            split,
+            *(
+                str(info[key])
+                for key in ("images", "patients", "groups", "benign", "malignant")
+            ),
+        )
+    console.print()
+    console.print(table)
+    console.print(f"Done. Artifacts written to {output}")
     return 0
 
 
