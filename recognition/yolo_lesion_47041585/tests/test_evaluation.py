@@ -9,7 +9,15 @@ from yolo_lesion_47041585.helpers.evaluation import box_iou, match_detections
 from yolo_lesion_47041585.predict import Detection
 
 
-def det(x=0.5, y=0.5, w=0.4, h=0.4, cls=1, conf=0.9, image="ISIC_1"):
+def det(
+    x: float = 0.5,
+    y: float = 0.5,
+    w: float = 0.4,
+    h: float = 0.4,
+    cls: int = 1,
+    conf: float = 0.9,
+    image: str = "ISIC_1",
+) -> Detection:
     return Detection(image, NormalizedBox(x, y, w, h), cls, conf)
 
 

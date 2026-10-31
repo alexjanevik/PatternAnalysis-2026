@@ -11,7 +11,7 @@ Usage:
 import argparse
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -20,8 +20,11 @@ def _merge(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
     """Recursively merge `override` into a copy of `base`."""
     merged = dict(base)
     for key, value in override.items():
-        if isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
-            merged[key] = _merge(dict(merged[key]), value)
+        current = merged.get(key)
+        if isinstance(value, Mapping) and isinstance(current, Mapping):
+            merged[key] = _merge(
+                dict(cast(Mapping[str, Any], current)), cast(Mapping[str, Any], value)
+            )
         else:
             merged[key] = value
     return merged

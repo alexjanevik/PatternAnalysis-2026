@@ -12,7 +12,7 @@ import csv
 import hashlib
 import random
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -885,7 +885,7 @@ class EpochSampler:
     def set_epoch(self, epoch: int) -> None:
         raise NotImplementedError("TODO")
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[int]:
         raise NotImplementedError("TODO")
 
     def __len__(self) -> int:

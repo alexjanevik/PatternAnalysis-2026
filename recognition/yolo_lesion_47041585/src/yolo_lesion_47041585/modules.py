@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ultralytics import YOLO
+from ultralytics.data.build import InfiniteDataLoader
 from ultralytics.models.yolo.detect import DetectionTrainer
 
 from yolo_lesion_47041585.dataset import EpochSampler
@@ -50,7 +51,7 @@ class LesionDetectionTrainer(DetectionTrainer):
 
     def get_dataloader(
         self, dataset_path: str, batch_size: int = 16, rank: int = 0, mode: str = "train"
-    ):
+    ) -> InfiniteDataLoader:
         raise NotImplementedError("TODO: inject the sampler for mode == 'train'")
 
 

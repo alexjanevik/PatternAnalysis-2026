@@ -5,7 +5,10 @@ No model or file access here, so the branches are easy to test.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from collections.abc import Sequence
+from typing import Any, Literal
+
+from yolo_lesion_47041585.predict import Detection
 
 Route = Literal["clear", "monitor", "urgent"]
 
@@ -27,18 +30,18 @@ class PolicySpec:
     version: str = "v0"
 
 
-def route_case(detections, spec: PolicySpec) -> Route:
+def route_case(detections: Sequence[Detection], spec: PolicySpec) -> Route:
     """Absent, conflicting or low-confidence detections are routed to monitor."""
     raise NotImplementedError("TODO")
 
 
-def search_policy(*args, **kwargs):
+def search_policy(*args: Any, **kwargs: Any) -> Any:
     raise NotImplementedError("TODO")
 
 
-def select_operating_point(*args, **kwargs):
+def select_operating_point(*args: Any, **kwargs: Any) -> Any:
     raise NotImplementedError("TODO")
 
 
-def select_candidate(*args, **kwargs):
+def select_candidate(*args: Any, **kwargs: Any) -> Any:
     raise NotImplementedError("TODO")

@@ -9,7 +9,9 @@ import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
+from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 from yolo_lesion_47041585.dataset import NormalizedBox
@@ -47,20 +49,25 @@ def detections_from_result(result: Results) -> list[Detection]:
     """
     image_id = Path(result.path).stem
     boxes = result.boxes
+    if boxes is None:
+        return []
+
+    # tolist() is untyped in torch, cast the expected types
+    xywhn = cast(list[list[float]], boxes.xywhn.tolist())  # pyright: ignore[reportUnknownMemberType]
+    class_ids = cast(list[float], boxes.cls.tolist())  # pyright: ignore[reportUnknownMemberType]
+    confidences = cast(list[float], boxes.conf.tolist())  # pyright: ignore[reportUnknownMemberType]
     return [
-        Detection(image_id, NormalizedBox(x, y, w, h), int(class_id), float(conf))
-        for (x, y, w, h), class_id, conf in zip(
-            boxes.xywhn.tolist(), boxes.cls.tolist(), boxes.conf.tolist()
-        )
+        Detection(image_id, NormalizedBox(x, y, w, h), int(class_id), conf)
+        for (x, y, w, h), class_id, conf in zip(xywhn, class_ids, confidences)
     ]
 
 
-def load_run(checkpoint: Path):
+def load_run(checkpoint: Path) -> YOLO:
     """Load a trained model plus its saved inference settings (conf, NMS, max_det)."""
     raise NotImplementedError("TODO")
 
 
-def predict_cases(model, images: Sequence[Path]) -> list[Detection]:
+def predict_cases(model: YOLO, images: Sequence[Path]) -> list[Detection]:
     """Detect lesions, undoing resize/padding so boxes are normalised by the original
     image size. This is the single inference path shared by validation, test and demo."""
     raise NotImplementedError("TODO")

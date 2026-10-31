@@ -8,6 +8,7 @@ interfaces the later experiments will use.
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from yolo_lesion_47041585.dataset import NormalizedBox
 from yolo_lesion_47041585.predict import Detection
@@ -37,8 +38,8 @@ def box_iou(a: NormalizedBox, b: NormalizedBox) -> float:
     by the same factor, so the result equals the pixel IoU.
 
     Args:
-        a (Detection): First box.
-        b (Detection): Second box.
+        a (NormalizedBox): First box.
+        b (NormalizedBox): Second box.
 
     Returns:
         float: Intersection over union in [0, 1].
@@ -92,11 +93,12 @@ def match_detections(
     claimed: set[int] = set()  # indices into `truths` already matched
     index_of = {id(truth): i for i, truth in enumerate(truths)}
 
-    matches = []
-    false_positives = []
+    matches: list[tuple[Detection, Detection, float]] = []
+    false_positives: list[Detection] = []
     # go through predictions from most to least confident
     for pred in sorted(predictions, key=lambda d: d.confidence, reverse=True):
-        best, best_iou = None, 0.0
+        best: Detection | None = None
+        best_iou = 0.0
         for truth in truths_by_image.get(pred.image_id, ()):
             # if the classes don't match or the truth is already claimed, skip it
             if truth.class_id != pred.class_id or index_of[id(truth)] in claimed:
@@ -119,21 +121,21 @@ def match_detections(
     return MatchResult(tuple(matches), tuple(false_positives), misses)
 
 
-def evaluate_detection(*args, **kwargs):
+def evaluate_detection(*args: Any, **kwargs: Any) -> Any:
     """mAP50, mAP50:95, precision, recall and per-class matched IoU."""
     raise NotImplementedError("TODO")
 
 
-def evaluate_routing(*args, **kwargs):
+def evaluate_routing(*args: Any, **kwargs: Any) -> Any:
     """Malignant sensitivity and benign escalation under a PolicySpec."""
     raise NotImplementedError("TODO")
 
 
-def bootstrap_by_patient(*args, **kwargs):
+def bootstrap_by_patient(*args: Any, **kwargs: Any) -> Any:
     """Patient-level bootstrap intervals."""
     raise NotImplementedError("TODO")
 
 
-def profile_inference(*args, **kwargs):
+def profile_inference(*args: Any, **kwargs: Any) -> Any:
     """Batch-1 latency including preprocessing, transfers and post-processing."""
     raise NotImplementedError("TODO")
