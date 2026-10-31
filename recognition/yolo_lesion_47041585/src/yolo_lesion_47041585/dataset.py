@@ -801,6 +801,10 @@ def build_sampling_weights(
 ) -> NDArray[np.float64]:
     """Per-image draw weights giving the requested expected malignant fraction.
 
+    The malignant images share `target_fraction` of the probability equally and the
+    benign images share the rest, so the expected malignant share of each epoch's draws
+    is the target.
+
     Args:
         records (Sequence[SplitRecord]): The training split's records only.
         target_fraction (float | None): Expected malignant share of each epoch, or None
@@ -808,27 +812,77 @@ def build_sampling_weights(
 
     Returns:
         NDArray[np.float64]: One weight per record, summing to 1.
+
+    Raises:
+        ValueError: If there are no records, any record is outside the training split,
+            the target is outside (0, 1), or one class is missing when a target is set.
     """
-    raise NotImplementedError("TODO: weights from class counts")
+    if not records:
+        raise ValueError("Cannot build sampling weights for no records.")
+    # only training records can be sampled
+    if outside := [r.audited.record.isic_id for r in records if r.split != "train"]:
+        raise ValueError(f"Only training records can be sampled, got {outside[:3]}")
+
+    # if no target fraction is specified, return uniform weights (1/n)
+    if target_fraction is None:
+        return np.full(len(records), 1 / len(records), dtype=np.float64)
+
+    if not 0 < target_fraction < 1:
+        raise ValueError(f"Target fraction must be in (0, 1), got {target_fraction}")
+
+    # check that both classes are present in the training records
+    malignant = np.array(
+        [r.audited.record.class_id == CLASS_MAPPING["Malignant"] for r in records]
+    )
+    if not malignant.any() or malignant.all():
+        raise ValueError("Both classes are needed to sample to a target fraction.")
+
+    # compute weights so the expected malignant fraction is the target
+    weights = np.empty(len(records), dtype=np.float64)
+    weights[malignant] = target_fraction / malignant.sum()
+    weights[~malignant] = (1 - target_fraction) / (~malignant).sum()
+
+    return weights
 
 
 class EpochSampler:
-    """Fixed-length weighted sampler reseeded each epoch (seed + epoch).
+    """Fixed-length weighted sampler reseeded each epoch from the seed and epoch.
 
     Epoch length stays equal to the training split size so every condition sees the same
-    number of optimizer steps. Draws are with replacement.
+    number of optimizer steps. Draws are with replacement. The same seed and epoch
+    always give the same draws, and call `set_epoch` before each epoch to change them.
+
+    Args:
+        weights (NDArray[np.float64]): Draw probability of each image, summing to 1.
+        length (int): Number of indices drawn per epoch.
+        seed (int): Base seed, combined with the epoch for each epoch's draws.
+
+    Raises:
+        ValueError: If the weights are not a 1D non-negative array summing to 1, or the
+            length is not positive.
     """
 
-    def __init__(
-        self, weights: NDArray[np.float64], length: int, seed: int
-    ) -> None:
-        raise NotImplementedError("TODO")
+    def __init__(self, weights: NDArray[np.float64], length: int, seed: int) -> None:
+        if weights.ndim != 1 or (weights < 0).any() or not np.isclose(weights.sum(), 1):
+            raise ValueError("Weights must be a 1D non-negative array summing to 1.")
+        if length < 1:
+            raise ValueError(f"Length must be positive, got {length}")
+
+        self._weights = weights.copy()
+        self._length = length
+        self._seed = seed
+        self._epoch = 0
 
     def set_epoch(self, epoch: int) -> None:
-        raise NotImplementedError("TODO")
+        """Choose the epoch whose draws the next iteration produces."""
+        self._epoch = epoch
 
     def __iter__(self) -> Iterator[int]:
-        raise NotImplementedError("TODO")
+        # use a new random generator for each epoch to keep draws independent
+        rng = np.random.default_rng([self._seed, self._epoch])
+        draws = rng.choice(len(self._weights), size=self._length, p=self._weights)
+
+        return iter(draws.tolist())
 
     def __len__(self) -> int:
-        raise NotImplementedError("TODO")
+        return self._length
