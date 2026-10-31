@@ -21,7 +21,9 @@ def write_dataset(root: Path, records: list[SplitRecord]) -> Path:
     """Write the records as a YOLO dataset of tiny noise images, plus a small val split."""
     rng = np.random.default_rng(0)
     items = {
-        "train": [(r.audited.record.isic_id, r.audited.record.class_id) for r in records],
+        "train": [
+            (r.audited.record.isic_id, r.audited.record.class_id) for r in records
+        ],
         "val": [(f"VAL_{i:02d}", i % 2) for i in range(8)],
     }
     for split, entries in items.items():
@@ -72,7 +74,8 @@ def make_trainer(
 
 
 @pytest.mark.parametrize(
-    "workers, target_fraction", [(0, 0.5), (2, 0.5), (0, None)]  # None is the A0 case
+    "workers, target_fraction",
+    [(0, 0.5), (2, 0.5), (0, None)],  # None is the A0 case
 )
 def test_training_uses_the_sampler_draws(
     tmp_path: Path,

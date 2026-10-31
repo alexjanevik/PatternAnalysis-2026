@@ -13,7 +13,9 @@ CONFIGS = Path(__file__).resolve().parents[1] / "configs"
 
 
 def resolve(condition: str) -> dict[str, Any]:
-    return resolve_training_config([CONFIGS / "base.yaml", CONFIGS / f"{condition}.yaml"])
+    return resolve_training_config(
+        [CONFIGS / "base.yaml", CONFIGS / f"{condition}.yaml"]
+    )
 
 
 def flatten(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:

@@ -24,7 +24,10 @@ def det(
 def test_iou_known_values():
     box = NormalizedBox(0.5, 0.5, 0.4, 0.4)
     assert box_iou(box, box) == pytest.approx(1.0)
-    assert box_iou(NormalizedBox(0.1, 0.5, 0.1, 0.4), NormalizedBox(0.9, 0.5, 0.1, 0.4)) == 0.0
+    assert (
+        box_iou(NormalizedBox(0.1, 0.5, 0.1, 0.4), NormalizedBox(0.9, 0.5, 0.1, 0.4))
+        == 0.0
+    )
     # shifted 0.2 along x: intersection 0.2*0.4, union 2*0.16 - 0.08
     assert box_iou(box, NormalizedBox(0.7, 0.5, 0.4, 0.4)) == pytest.approx(1 / 3)
 
