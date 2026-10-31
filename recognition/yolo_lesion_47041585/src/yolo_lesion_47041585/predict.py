@@ -10,6 +10,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from ultralytics.engine.results import Results
+
 
 @dataclass(frozen=True)
 class Detection:
@@ -32,6 +34,29 @@ class Detection:
     height: float
     class_id: int
     confidence: float
+
+
+def detections_from_result(result: Results) -> list[Detection]:
+    """Convert one Ultralytics `Results` into Detections in the original image's frame.
+
+    Ultralytics has already undone the resize and padding, and `boxes.xywhn` is
+    normalised by the original image size, so no further geometry is needed here.
+
+    Args:
+        result (ultralytics.engine.results.Results): Prediction for a single image.
+
+    Returns:
+        list[Detection]: One entry per predicted box, with the image ID taken from the
+            file name.
+    """
+    image_id = Path(result.path).stem
+    boxes = result.boxes
+    return [
+        Detection(image_id, x, y, w, h, int(class_id), float(conf))
+        for (x, y, w, h), class_id, conf in zip(
+            boxes.xywhn.tolist(), boxes.cls.tolist(), boxes.conf.tolist()
+        )
+    ]
 
 
 def load_run(checkpoint: Path):
