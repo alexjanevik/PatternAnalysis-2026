@@ -849,8 +849,11 @@ class EpochSampler:
     """Fixed-length weighted sampler reseeded each epoch from the seed and epoch.
 
     Epoch length stays equal to the training split size so every condition sees the same
-    number of optimizer steps. Draws are with replacement. The same seed and epoch
-    always give the same draws, and call `set_epoch` before each epoch to change them.
+    number of optimizer steps. Draws are with replacement. Every iteration is the next
+    epoch, counting from zero, so the draws depend only on the seed and how many epochs
+    came before. Ultralytics never calls `set_epoch` on a single GPU and its loader
+    prefetches indices for the following epoch early, so the sampler tracks the epoch
+    itself instead of being told.
 
     Args:
         weights (NDArray[np.float64]): Draw probability of each image, summing to 1.
@@ -873,13 +876,11 @@ class EpochSampler:
         self._seed = seed
         self._epoch = 0
 
-    def set_epoch(self, epoch: int) -> None:
-        """Choose the epoch whose draws the next iteration produces."""
-        self._epoch = epoch
-
     def __iter__(self) -> Iterator[int]:
         # use a new random generator for each epoch to keep draws independent
         rng = np.random.default_rng([self._seed, self._epoch])
+        # iterate over draws for this epoch then increment epoch counter for next call
+        self._epoch += 1
         draws = rng.choice(len(self._weights), size=self._length, p=self._weights)
 
         return iter(draws.tolist())
