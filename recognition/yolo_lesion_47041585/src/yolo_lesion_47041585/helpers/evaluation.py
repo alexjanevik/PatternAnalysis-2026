@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from yolo_lesion_47041585.dataset import NormalizedBox
 from yolo_lesion_47041585.predict import Detection
 
 
@@ -29,7 +30,7 @@ class MatchResult:
     misses: tuple[Detection, ...]
 
 
-def box_iou(a: Detection, b: Detection) -> float:
+def box_iou(a: NormalizedBox, b: NormalizedBox) -> float:
     """IoU of two normalised centre-format boxes.
 
     Normalising by the same image width and height scales the intersection and the union
@@ -100,7 +101,7 @@ def match_detections(
             # if the classes don't match or the truth is already claimed, skip it
             if truth.class_id != pred.class_id or index_of[id(truth)] in claimed:
                 continue
-            iou = box_iou(pred, truth)
+            iou = box_iou(pred.box, truth.box)
             # if IoU is above the threshold and it's the best so far, remember it
             if iou >= iou_threshold and iou > best_iou:
                 best, best_iou = truth, iou

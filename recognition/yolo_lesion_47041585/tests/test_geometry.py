@@ -60,8 +60,9 @@ def test_result_conversion_is_normalised_by_the_original_size():
 
     (detection,) = detections_from_result(result)
     assert detection.image_id == "ISIC_0000123"
-    assert (detection.x_center, detection.y_center) == pytest.approx((0.5, 0.5))
-    assert (detection.width, detection.height) == pytest.approx((0.5, 0.5))
+    box = detection.box
+    assert (box.x_center, box.y_center) == pytest.approx((0.5, 0.5))
+    assert (box.width, box.height) == pytest.approx((0.5, 0.5))
     assert detection.class_id == 1
     assert detection.confidence == pytest.approx(0.8)
 

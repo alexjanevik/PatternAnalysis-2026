@@ -12,6 +12,8 @@ from pathlib import Path
 
 from ultralytics.engine.results import Results
 
+from yolo_lesion_47041585.dataset import NormalizedBox
+
 
 @dataclass(frozen=True)
 class Detection:
@@ -19,19 +21,13 @@ class Detection:
 
     Attributes:
         image_id (str): Image identifier (file stem).
-        x_center (float): Normalised box centre x.
-        y_center (float): Normalised box centre y.
-        width (float): Normalised box width.
-        height (float): Normalised box height.
+        box (NormalizedBox): The box, normalised by the original image size.
         class_id (int): 0 Benign, 1 Malignant.
         confidence (float): Class confidence.
     """
 
     image_id: str
-    x_center: float
-    y_center: float
-    width: float
-    height: float
+    box: NormalizedBox
     class_id: int
     confidence: float
 
@@ -52,7 +48,7 @@ def detections_from_result(result: Results) -> list[Detection]:
     image_id = Path(result.path).stem
     boxes = result.boxes
     return [
-        Detection(image_id, x, y, w, h, int(class_id), float(conf))
+        Detection(image_id, NormalizedBox(x, y, w, h), int(class_id), float(conf))
         for (x, y, w, h), class_id, conf in zip(
             boxes.xywhn.tolist(), boxes.cls.tolist(), boxes.conf.tolist()
         )
