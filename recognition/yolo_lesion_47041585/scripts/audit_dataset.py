@@ -40,7 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SPLIT_SEED = 47041585
 MASK_THRESHOLD = 128
 
-# original source sets and where their images and masks live under the source folder
+# original source sets and where their images and masks live under the dataset folder
 IMAGE_DIRS = {
     "train": "ISIC2018_Task1-2_Training_Input_x2",
     "test": "ISIC2018_Task1-2_Test_Input",
@@ -105,9 +105,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             directory is not empty.
     """
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
-    parser.add_argument("--source", type=Path, default=PROJECT_ROOT / "dataset/source")
+    parser.add_argument("--source", type=Path, default=PROJECT_ROOT / "dataset")
     parser.add_argument(
-        "--output", type=Path, default=PROJECT_ROOT / "artifacts/isic2018_stage1"
+        "--output", type=Path, default=PROJECT_ROOT / "artifacts/isic2018"
     )
     args = parser.parse_args(argv)
     source: Path = args.source
