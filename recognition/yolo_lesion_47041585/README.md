@@ -18,24 +18,186 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 
 ### put a training visualisation here, perhaps a gif if i can
 
-| \# | Section |
-| --: | :---|
-| 1 | [Feasibility Review](#feasibility-review) |
-| 2 | [Project Structure](#project-structure) |
-| 3 | [Dependencies](#dependencies) |
-| 4 | [Usage](#usage) |
-| 4.1 |   [Examples](#examples) |
-| 6 | [Data Pre-processing](#data-pre-processing) |
-| 7 | [Benchmarks and Results](#benchmarks-and-results) |
-| 7.1 |   [Baseline model](#baseline-model) |
-| 7.2 |   [Candidate model](#candidate-model) |
-| 7.3 |   [Comparison](#comparison) |
-| 8 | [Resource Profiling](#resource-profiling) |
-| 9 | [Qualitative Error Autopsy](#qualitative-error-autopsy) |
-| 10 | [Trade-Off Synthesis and Recommendation](#trade-off-synthesis-and-recommendation) |
-| 11 | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure) |
-| 12 | [References](#references) |
-| 13 | [Citation](#citation) |
+| \#    | Section                                                                                       |
+| ----: | :---------------------------------------------------------------------------------------------|
+| 1     | [Project Structure](#project-structure)                                                       |
+| 2     | [Dependencies](#dependencies)                                                                 |
+| 3     | [Usage](#usage)                                                                               |
+| 3.1   |   [Install](#1-install)                                                                       |
+| 3.2   |   [Retrieve the data](#2-retrieve-the-data)                                                   |
+| 3.3   |   [Build the cohort, split and YOLO dataset](#3-build-the-cohort-split-and-yolo-dataset)      |
+| 3.4   |   [Train](#4-train)                                                                           |
+| 3.5   |   [Predict on new images](#5-predict-on-new-images)                                           |
+| 4     | [Feasibility Review](#feasibility-review)                                                     |
+| 5     | [Data Pre-processing](#data-pre-processing)                                                   |
+| 6     | [Benchmarks and Results](#benchmarks-and-results)                                             |
+| 6.1   |   [Baseline model](#baseline-model)                                                           |
+| 6.2   |   [Candidate model](#candidate-model)                                                         |
+| 6.3   |   [Comparison](#comparison)                                                                   |
+| 7     | [Resource Profiling](#resource-profiling)                                                     |
+| 8     | [Qualitative Error Autopsy](#qualitative-error-autopsy)                                       |
+| 9     | [Trade-Off Synthesis and Recommendation](#trade-off-synthesis-and-recommendation)             |
+| 10    | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure)         |
+| 11    | [References](#references)                                                                     |
+| 12    | [Citation](#citation)                                                                         |
+
+## Project Structure
+
+```ansi
+yolo_lesion_47041585/
+├── README.md
+├── pyproject.toml
+├── uv.lock
+├── configs/
+│   ├── a0.yaml
+│   ├── b0.yaml
+│   ├── base.yaml
+│   ├── mps.yaml
+│   ├── o35.yaml
+│   └── o50.yaml
+├── dataset/
+│   ├── metadata_raw.csv
+│   └── {ISIC2018_...}
+├── runs/
+├── scripts/
+│   ├── fetch_data.sh
+│   └── train.slurm
+├── src/
+│   └── yolo_lesion_47041585/
+│       ├── audit.py
+│       ├── dataset.py
+│       ├── modules.py
+│       ├── predict.py
+│       ├── train.py
+│       └── helpers/
+│           ├── evaluation.py
+│           ├── policy.py
+│           └── visualisation.py
+└── weights/
+```
+
+## Dependencies
+
+Training was performed on the UQ Rangpur cluster (Alma Linux 8.10) using an NVIDIA A100 GPU (40GB VRAM) with CUDA 13.1.
+> **NOTE:** Pilot tests were also performed using MPS on an M1 MacBook Air, though these results are not reported here due to the huge discrepancy in performance. Just keep in mind that it is possible to run this project using MPS. Windows compatibility has not been tested.
+
+| Dependency        | Version           | Use-case case                                                                             |
+|-------------------|------------------:|-------------------------------------------------------------------------------------------|
+| Python            | 3.12              | Runtime environment                                                                       |
+| ultralytics       | 8.4.182           | YOLO11 detector, trainer, validator                                                       |
+| torch             | 2.14.1            | Tensor computation, GPU use                                                               |
+| torchvision       | 0.29.1            | Installed with ultralytics and torch (not imported directly)                              |
+| numpy             | 2.5.4             | Sampling, box geometry                                                                    |
+| pillow            | 13.0.0            | Image reading and overlays                                                                |
+| pyyaml            | 6.0.3             | Configuration files                                                                       |
+| rich              | 15.0.0            | Console output formatting                                                                 |
+
+Dependencies for these packages are all automatically installed when using a virtual environment either in `pip` with `requirements.txt` or `uv` (or equivalent) with `pyproject.toml`. The `uv.lock` file is included to ensure that the same versions of dependencies are installed across different environments.
+
+## Usage
+
+All commands are run from the project folder (`yolo_lesion_47041585/`).
+
+### 1. Install
+
+```bash
+uv sync --frozen # installs the exact versions in uv.lock (Python 3.12)
+```
+
+Without `uv`, create a Python 3.12 virtual environment and run `pip install -r requirements.txt`.
+
+### 2. Retrieve the data
+
+Before training, you will need to ensure the project has access to the ISIC2018 dataset.
+
+```bash
+# if running on UQ Rangpur cluster:
+./scripts/fetch_data.sh --rangpur
+
+# otherwise:
+./scripts/fetch_data.sh
+```
+
+This will place the ISIC2018 dataset into `dataset/` alongside `metadata_raw.csv`.
+
+> **NOTE:** The training images and masks available on Rangpur are `_x2` versions. These are not available from the public ISIC archive, so the results described here are not entirely reproducible without upscaled images. Using the original images will likely provide better results due to the masks being truly binary.
+
+### 3. Build the cohort, split and YOLO dataset
+
+```bash
+uv run python -m yolo_lesion_47041585.audit [--source dataset] [--output artifacts/isic2018]
+```
+
+This builds the cohort, checks each image against its mask, derives the bounding boxes, splits the images 70/15/15 by patient and exports the result for YOLO. It stops at the first failed check and needs a new or empty output folder. It writes to `artifacts/isic2018`.
+
+| File                              | Contents                                                                   |
+|-----------------------------------|----------------------------------------------------------------------------|
+| `yolo/`                           | `dataset.yaml`, plus `images/` and `labels/` for `train`, `val` and `test` |
+| `split_manifest.csv`              | Split, patient, class and box for every retained image                     |
+| `cohort.csv`, `exclusions.csv`    | The retained images and why others were excluded                           |
+| `summary.json`                    | Counts and the hashes of the raw metadata and split                        |
+
+The images in `yolo/` are symlinks to absolute paths, so **run this on the machine you will train on**. Do not copy `artifacts/` between machines.
+
+### 4. Train
+
+Each run is one condition, defined by layering config files, with the condition file last:
+
+```bash
+uv run train --config configs/base.yaml --config configs/{CONFIG}.yaml
+```
+
+| Condition | Augmentation  | Training images drawn         | Malignant share of each epoch |
+|-----------|---------------|-------------------------------|-------------------------------|
+| `b0`      | none          | stock Ultralytics shuffle     | natural (about 19%)           |
+| `a0`      | modest        | with replacement, uniformly   | natural                       |
+| `o35`     | modest        | with replacement, weighted    | 35%                           |
+| `o50`     | modest        | with replacement, weighted    | 50%                           |
+
+`b0` is the baseline model. It differs from `a0` in two ways at once, so it is not a controlled comparison. The other three conditions are controlled comparisons.
+
+The first run downloads `weights/yolo11n.pt` (COCO-pretrained YOLO11n).
+
+Options:
+
+| Option                    | Effect                                           |
+|---------------------------|--------------------------------------------------|
+| `--pilot`                 | 3-epoch smoke test. the run is named `...-pilot` |
+| `--device cpu\|mps\|0`    | Choose the device (default: Ultralytics decides) |
+
+As mentioned prior, MPS is supported but not recommended. It uses a smaller batch size so the results are not comparable to GPU runs.
+
+A run writes `runs/<condition>-s<seed>/` (it will not overwrite an existing one):
+
+| File                                   | Contents                                                                  |
+|----------------------------------------|---------------------------------------------------------------------------|
+| `weights/best.pt`, `last.pt`           | Best checkpoint by validation mAP50:95, and the last epoch                |
+| `config.resolved.yaml`, `metadata.json`| The exact settings, split and checkpoint hashes, library and GPU versions |
+| `results.csv`                          | Losses and validation metrics for each epoch                              |
+| `result.json`                          | Epoch and validation times, peak GPU memory, best mAP50:95                |
+| `sampling.csv`                         | Per epoch, how many malignant images the sampler drew (sampled runs only) |
+
+On the Rangpur cluster, submit a slurm script from the project folder:
+
+```bash
+sbatch scripts/train.slurm configs/{CONFIG}.yaml # add --pilot for a smoke test
+```
+
+The log is written to `slurm-yolo-lesion-<jobid>.out` in the project folder.
+
+### 5. Predict on new images
+
+```bash
+uv run predict --checkpoint runs/{RUN}/weights/best.pt \
+    --images {path/to/images} --output predictions
+```
+
+No masks or labels are needed. The output folder must be new or empty. It contains:
+
+- `detections.csv`: every box at confidence 0.001 or above, as `image_id, x_center, y_center, width, height, class_id, class_name, confidence`. Box values are fractions of the original image's width and height.
+- `overlays/`: each image with its boxes drawn (green benign, red malignant). Only boxes at `--overlay-conf` (default 0.25) or above are drawn.
+
+The same region can appear twice - once per class - because each class that scores above the threshold keeps its own box. The confidence of the malignant box is what the triage thresholds act on.
 
 ## Feasibility Review
 
@@ -83,14 +245,6 @@ Experiments will be run using a single NVIDIA A100 GPU via the COMP3710 Slurm pa
 - 2 hours for evaluation and analysis.
 
 The smoke test will measure epoch time and peak VRAM usage to set an epoch limit for the controlled comparisons. If the projected runtime exceeds this budget, the number of experiments will be reduced. YOLO11s or YOLO11m will only be tested if there are resources remaining.
-
-## Project Structure
-
-## Dependencies
-
-## Usage
-
-### Examples
 
 ## Data Pre-processing
 
