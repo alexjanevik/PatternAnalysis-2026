@@ -41,6 +41,12 @@ def test_oversampling_contrasts_change_only_the_malignant_fraction(a: str, b: st
     assert differences(a, b) == {"sampling.malignant_fraction"}
 
 
+def test_the_weight_decay_variant_changes_only_weight_decay():
+    assert differences("a0", "a0_wd") == {"train.weight_decay"}
+    assert resolve("a0_wd")["train"]["weight_decay"] == 0.05
+    assert resolve("a0_wd")["condition"] == "A0-wd"  # its runs get their own folders
+
+
 def test_b0_is_a_reference_that_differs_in_two_settings():
     """B0 vs A0 changes augmentation and the sampling scheme, so it is not a clean contrast."""
     changed = differences("b0", "a0")
