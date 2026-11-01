@@ -174,6 +174,7 @@ def test_best_checkpoint_follows_map50_95_and_keeps_the_earliest_tie(tmp_path: P
     assert fitness[2] is not None and fitness[2] < untyped.best_fitness  # tie loses
     assert fitness[3] == 0.20
     assert all(m is not None and "fitness" not in m for m, _ in results)
+    assert len(trainer.validation_seconds) == 4
 
 
 def test_trainer_overrides_flatten_the_resolved_config(tmp_path: Path):

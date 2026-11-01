@@ -7,11 +7,12 @@
 #SBATCH --time=04:00:00 # TODO: set from the measured pilot projection
 #SBATCH --output=runs/slurm/%x-%j.out
 
-# Usage: sbatch scripts/train.slurm configs/b0.yaml
+# Usage: mkdir -p runs/slurm && sbatch scripts/train.slurm configs/o35.yaml [--pilot]
+# The runs/slurm folder must exist first, since Slurm opens the output file before this runs.
 set -euo pipefail
-CONFIG="${1:?usage: sbatch scripts/train.slurm <condition config>}"
+CONFIG="${1:?usage: sbatch scripts/train.slurm <condition config> [--pilot]}"
 
 cd "$(dirname "$0")/.."
 mkdir -p runs/slurm
 nvidia-smi
-uv run --frozen train --config configs/base.yaml --config "$CONFIG"
+uv run --frozen train --config configs/base.yaml --config "$CONFIG" "${@:2}"

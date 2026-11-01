@@ -28,7 +28,7 @@ def test_pilot_configs_are_short_and_labelled():
     config = resolve_training_config(
         [CONFIGS / "base.yaml", CONFIGS / "o35.yaml"], pilot=True
     )
-    assert config["train"]["epochs"] == 2
+    assert config["train"]["epochs"] == 3
     assert run_id(config) == "O35-s47041585-pilot"
 
 
@@ -102,6 +102,11 @@ def test_run_experiment_saves_provenance_results_and_sampling(
 
     result = json.loads((run_dir / "result.json").read_text())
     assert result["epochs_run"] == 2
+    assert len(result["epoch_seconds"]) == len(result["validation_seconds"]) == 2
+    assert all(
+        0 <= val <= epoch
+        for val, epoch in zip(result["validation_seconds"], result["epoch_seconds"])
+    )
     assert (run_dir / result["best_checkpoint"]).exists()  # relative to the run folder
     assert result["batches_per_epoch"] == 4  # 30 images in batches of 8
     assert result["gradient_accumulation"] == 1

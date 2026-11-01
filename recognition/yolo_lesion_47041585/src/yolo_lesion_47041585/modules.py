@@ -8,6 +8,7 @@ does not split data, choose thresholds or draw figures.
 """
 
 import os
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -97,6 +98,7 @@ class LesionDetectionTrainer(DetectionTrainer):
             loader, kept so a run can log what it drew.
         train_class_ids (NDArray[np.int_] | None): The class of each training image in
             the order the sampler indexes them.
+        validation_seconds (list[float]): How long each epoch's validation took.
     """
 
     def __init__(
@@ -116,6 +118,7 @@ class LesionDetectionTrainer(DetectionTrainer):
         super().__init__(cfg, overrides, _callbacks)  # pyright: ignore[reportUnknownMemberType]
         self.train_sampler: EpochSampler | None = None
         self.train_class_ids: NDArray[np.int_] | None = None
+        self.validation_seconds: list[float] = []
         self._scheme = scheme
         self._target_fraction = target_fraction
         self._train_classes = dict(train_classes)
@@ -179,7 +182,9 @@ class LesionDetectionTrainer(DetectionTrainer):
         """
         # Ultralytics' trainer attributes are untyped, so reach them through Any
         trainer = cast(Any, self)
+        start = time.perf_counter()
         metrics: dict[str, float] | None = trainer.validator(trainer)
+        self.validation_seconds.append(time.perf_counter() - start)
         if metrics is None:
             return None, None
         metrics.pop("fitness", None)

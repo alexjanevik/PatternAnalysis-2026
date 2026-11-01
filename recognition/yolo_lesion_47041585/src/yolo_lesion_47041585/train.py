@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import csv
 import hashlib
 import json
 import platform
@@ -35,6 +36,8 @@ from yolo_lesion_47041585.modules import (
 SAMPLING_SCHEMES = ("stock", "replacement")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIR = Path("runs")
+# the first epoch carries start-up costs, so two more give a steady-state time
+PILOT_EPOCHS = 3
 
 
 def _merge(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
@@ -76,7 +79,7 @@ def resolve_training_config(
 
     if pilot:
         config["pilot"] = True
-        config["train"]["epochs"] = 2
+        config["train"]["epochs"] = PILOT_EPOCHS
 
     return config
 
@@ -159,6 +162,13 @@ def collect_run_metadata(config: Mapping[str, Any], model_path: Path) -> dict[st
             ),
         },
     }
+
+
+def epoch_seconds(results_csv: Path) -> list[float]:
+    """Each epoch's duration, validation included, from Ultralytics' cumulative times."""
+    with results_csv.open(newline="") as file:
+        elapsed = [float(row["time"]) for row in csv.DictReader(file)]
+    return [round(b - a, 1) for a, b in zip([0.0, *elapsed], elapsed)]
 
 
 def summarise_sampling(
@@ -249,6 +259,8 @@ def run_experiment(config: Mapping[str, Any]) -> Path:
         "batches_per_epoch": len(untyped.train_loader),
         "gradient_accumulation": int(untyped.accumulate),
         "elapsed_seconds": round(elapsed, 1),
+        "epoch_seconds": epoch_seconds(run_dir / "results.csv"),
+        "validation_seconds": [round(s, 1) for s in trainer.validation_seconds],
         "peak_vram_allocated_mb": None,
         "peak_vram_reserved_mb": None,
     }
