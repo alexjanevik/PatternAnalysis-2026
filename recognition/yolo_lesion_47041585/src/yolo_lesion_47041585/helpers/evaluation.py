@@ -1,8 +1,8 @@
 """
 Scoring: box matching, detection metrics, routing outcomes, uncertainty and timing.
 
-`match_detections` is needed first; the other functions are placeholders for the
-interfaces the later experiments will use.
+Box matching and IoU are implemented here. Routing is scored in `policy.py`, which depends
+on this module; the remaining functions are placeholders for the final evaluation.
 """
 
 from collections import defaultdict
@@ -123,11 +123,6 @@ def match_detections(
 
 def evaluate_detection(*args: Any, **kwargs: Any) -> Any:
     """mAP50, mAP50:95, precision, recall and per-class matched IoU."""
-    raise NotImplementedError("TODO")
-
-
-def evaluate_routing(*args: Any, **kwargs: Any) -> Any:
-    """Malignant sensitivity and benign escalation under a PolicySpec."""
     raise NotImplementedError("TODO")
 
 
