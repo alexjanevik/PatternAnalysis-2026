@@ -227,12 +227,14 @@ def build_cohort(
 
     if not image_roots:
         raise ValueError("No image roots provided")
+
     if set(image_roots) != set(mask_roots):
         raise ValueError("Image and mask roots must have identical source-set keys")
 
     for root in image_roots.values():
         if not root.is_dir():
             raise ValueError(f"Image root directory not found: {root}")
+
     for root in mask_roots.values():
         if not root.is_dir():
             raise ValueError(f"Mask root directory not found: {root}")
@@ -288,10 +290,13 @@ def build_cohort(
         # check for missing or invalid fields
         if isic_id is None:
             reasons.append("missing_isic_id")
+
         elif isic_id in duplicate_ids:
             reasons.append("duplicate_metadata_id")
+
         if diagnosis not in CLASS_MAPPING:
             reasons.append("unsupported_diagnosis")
+
         if patient_id is None:
             reasons.append("missing_patient_id")
 
@@ -377,8 +382,10 @@ def mask_to_box(mask: NDArray[np.bool_]) -> NormalizedBox:
     """
     if mask.dtype != np.bool_:
         raise ValueError(f"Mask must be boolean, got dtype={mask.dtype}")
+
     if mask.ndim != 2:
         raise ValueError(f"Mask must be 2D, got shape={mask.shape}")
+
     if mask.size == 0:
         raise ValueError(f"Mask has a zero-sized axis, got shape={mask.shape}")
 
@@ -584,12 +591,14 @@ def make_grouped_splits(
     """
     if set(ratios) != set(SPLITS) or any(r <= 0 for r in ratios.values()):
         raise ValueError(f"Ratios must be positive and cover {SPLITS}: {dict(ratios)}")
+
     if abs(sum(ratios.values()) - 1) > 1e-9:
         raise ValueError(f"Ratios must sum to 1, got {sum(ratios.values())}")
 
     ids = [audited.record.isic_id for audited in records]
     if len(set(ids)) != len(ids):
         raise ValueError("Duplicate ISIC IDs in records")
+
     if missing := sorted(set(ids) - set(groups)):
         raise ValueError(f"Records without a group: {missing[:5]}")
 
@@ -796,8 +805,40 @@ def export_yolo_dataset(manifest: SplitManifest, destination: Path) -> Path:
 # --- Training loader and sampling ---------------------------------------------
 
 
+def read_train_classes(manifest_csv: Path) -> dict[str, int]:
+    """Read the class of every training image from a saved split manifest.
+
+    Only the `isic_id`, `split` and `class_id` columns are used, so the manifest file
+    is enough: no image or mask paths are needed. Validation and test images are
+    left out, which keeps them out of any sampler built from the result.
+
+    Args:
+        manifest_csv (Path): The `split_manifest.csv` written by the audit.
+
+    Returns:
+        dict[str, int]: ISIC ID to class ID for each training image.
+
+    Raises:
+        ValueError: If the manifest has no training images or a class ID is not 0 or 1.
+    """
+    with manifest_csv.open(newline="") as file:
+        classes = {
+            row["isic_id"]: int(row["class_id"])
+            for row in csv.DictReader(file)
+            if row["split"] == "train"
+        }
+
+    if not classes:
+        raise ValueError(f"No training images in {manifest_csv}")
+
+    if not set(classes.values()) <= set(CLASS_MAPPING.values()):
+        raise ValueError(f"Unexpected class IDs in {manifest_csv}")
+
+    return classes
+
+
 def build_sampling_weights(
-    records: Sequence[SplitRecord], target_fraction: float | None
+    class_ids: Sequence[int], target_fraction: float | None
 ) -> NDArray[np.float64]:
     """Per-image draw weights giving the requested expected malignant fraction.
 
@@ -806,39 +847,35 @@ def build_sampling_weights(
     is the target.
 
     Args:
-        records (Sequence[SplitRecord]): The training split's records only.
+        class_ids (Sequence[int]): The class of each training image, in the order the
+            weights should be returned.
         target_fraction (float | None): Expected malignant share of each epoch, or None
             for natural sampling (uniform weights).
 
     Returns:
-        NDArray[np.float64]: One weight per record, summing to 1.
+        NDArray[np.float64]: One weight per image, summing to 1.
 
     Raises:
-        ValueError: If there are no records, any record is outside the training split,
-            the target is outside (0, 1), or one class is missing when a target is set.
+        ValueError: If there are no images, the target is outside (0, 1), or one class
+            is missing when a target is set.
     """
-    if not records:
-        raise ValueError("Cannot build sampling weights for no records.")
-    # only training records can be sampled
-    if outside := [r.audited.record.isic_id for r in records if r.split != "train"]:
-        raise ValueError(f"Only training records can be sampled, got {outside[:3]}")
+    if not class_ids:
+        raise ValueError("Cannot build sampling weights for no images.")
 
     # if no target fraction is specified, return uniform weights (1/n)
     if target_fraction is None:
-        return np.full(len(records), 1 / len(records), dtype=np.float64)
+        return np.full(len(class_ids), 1 / len(class_ids), dtype=np.float64)
 
     if not 0 < target_fraction < 1:
         raise ValueError(f"Target fraction must be in (0, 1), got {target_fraction}")
 
-    # check that both classes are present in the training records
-    malignant = np.array(
-        [r.audited.record.class_id == CLASS_MAPPING["Malignant"] for r in records]
-    )
+    # check that both classes are present
+    malignant = np.array([c == CLASS_MAPPING["Malignant"] for c in class_ids])
     if not malignant.any() or malignant.all():
         raise ValueError("Both classes are needed to sample to a target fraction.")
 
     # compute weights so the expected malignant fraction is the target
-    weights = np.empty(len(records), dtype=np.float64)
+    weights = np.empty(len(class_ids), dtype=np.float64)
     weights[malignant] = target_fraction / malignant.sum()
     weights[~malignant] = (1 - target_fraction) / (~malignant).sum()
 
@@ -860,6 +897,10 @@ class EpochSampler:
         length (int): Number of indices drawn per epoch.
         seed (int): Base seed, combined with the epoch for each epoch's draws.
 
+    Attributes:
+        history (list[NDArray[np.int64]]): The indices drawn in each epoch so far, so a
+            run can report what it actually trained on.
+
     Raises:
         ValueError: If the weights are not a 1D non-negative array summing to 1, or the
             length is not positive.
@@ -875,6 +916,7 @@ class EpochSampler:
         self._length = length
         self._seed = seed
         self._epoch = 0
+        self.history: list[NDArray[np.int64]] = []
 
     def __iter__(self) -> Iterator[int]:
         # use a new random generator for each epoch to keep draws independent
@@ -882,6 +924,7 @@ class EpochSampler:
         # iterate over draws for this epoch then increment epoch counter for next call
         self._epoch += 1
         draws = rng.choice(len(self._weights), size=self._length, p=self._weights)
+        self.history.append(draws)
 
         return iter(draws.tolist())
 

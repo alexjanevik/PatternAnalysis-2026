@@ -14,38 +14,60 @@ from typing import Any, Literal, cast
 
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from ultralytics import YOLO
 from ultralytics.data.build import InfiniteDataLoader, seed_worker
 from ultralytics.data.dataset import YOLODataset
 from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.utils import DEFAULT_CFG
 
-from yolo_lesion_47041585.dataset import (
-    EpochSampler,
-    SplitRecord,
-    build_sampling_weights,
-)
+from yolo_lesion_47041585.dataset import EpochSampler, build_sampling_weights
+
+# Ultralytics' metric key for mAP averaged over IoU 0.5 to 0.95 for boxes
+MAP_50_95 = "metrics/mAP50-95(B)"
 
 
-def build_detector(checkpoint: str = "yolo11n.pt") -> YOLO:
+def _task(model: YOLO) -> str:
+    """The model's task, which pyright can't see through Ultralytics' dynamic lookup."""
+    return cast(str, model.task)  # pyright: ignore[reportUnknownMemberType]
+
+
+def build_detector(checkpoint: str) -> YOLO:
     """Load a detection checkpoint (not a classification or segmentation variant).
 
+    Official weights such as `weights/yolo11n.pt` are downloaded to that path if they
+    are missing.
+
     Args:
-        checkpoint (str): Path or name of the weights to load.
+        checkpoint (str): Path to the weights to load.
 
     Returns:
         YOLO: The loaded detector.
+
+    Raises:
+        ValueError: If the checkpoint is not for object detection.
     """
-    raise NotImplementedError("TODO")
+    model = YOLO(checkpoint)
+    if (task := _task(model)) != "detect":
+        raise ValueError(f"{checkpoint} is a {task!r} model, expected 'detect'.")
+    return model
 
 
 def validate_model_contract(model: YOLO, class_names: Sequence[str]) -> None:
     """Check the model is a detector whose class order matches the project mapping.
 
+    Args:
+        model (YOLO): A model fine-tuned on the project's classes.
+        class_names (Sequence[str]): The class names in class ID order.
+
     Raises:
         ValueError: If the task or class names differ from `class_names`.
     """
-    raise NotImplementedError("TODO")
+    if (task := _task(model)) != "detect":
+        raise ValueError(f"Expected a 'detect' model, got {task!r}.")
+    names = [str(name) for _, name in sorted(model.names.items())]
+    if names != list(class_names):
+        raise ValueError(f"Model classes {names} do not match {list(class_names)}.")
 
 
 class LesionDetectionTrainer(DetectionTrainer):
@@ -61,8 +83,8 @@ class LesionDetectionTrainer(DetectionTrainer):
         cfg: Ultralytics default configuration.
         overrides (dict[str, Any] | None): Training arguments for Ultralytics.
         _callbacks (dict[str, Any] | None): Ultralytics callbacks.
-        train_records (Sequence[SplitRecord]): The training split's records, whose
-            ISIC IDs must match the images in the training folder.
+        train_classes (Mapping[str, int]): The class of each training image by ISIC ID,
+            which must match the images in the training folder exactly.
         scheme (Literal["stock", "replacement"]): How training images are drawn.
         target_fraction (float | None): Expected malignant share of each epoch, or None
             to keep the natural class balance. Only valid with "replacement".
@@ -73,6 +95,8 @@ class LesionDetectionTrainer(DetectionTrainer):
     Attributes:
         train_sampler (EpochSampler | None): The sampler last given to the training
             loader, kept so a run can log what it drew.
+        train_class_ids (NDArray[np.int_] | None): The class of each training image in
+            the order the sampler indexes them.
     """
 
     def __init__(
@@ -81,20 +105,20 @@ class LesionDetectionTrainer(DetectionTrainer):
         overrides: dict[str, Any] | None = None,
         _callbacks: dict[str, Any] | None = None,
         *,
-        train_records: Sequence[SplitRecord],
+        train_classes: Mapping[str, int],
         scheme: Literal["stock", "replacement"],
         target_fraction: float | None,
     ) -> None:
         if scheme == "stock" and target_fraction is not None:
             raise ValueError("The stock loader cannot sample to a malignant fraction.")
+
         # pyright doesnt know DetectionTrainer.__init__ takes overrides and _callbacks
         super().__init__(cfg, overrides, _callbacks)  # pyright: ignore[reportUnknownMemberType]
         self.train_sampler: EpochSampler | None = None
-        self._weight_by_id: dict[str, float] | None = None
-        if scheme == "replacement":
-            weights = build_sampling_weights(train_records, target_fraction)
-            ids = [r.audited.record.isic_id for r in train_records]
-            self._weight_by_id = dict(zip(ids, weights.tolist()))
+        self.train_class_ids: NDArray[np.int_] | None = None
+        self._scheme = scheme
+        self._target_fraction = target_fraction
+        self._train_classes = dict(train_classes)
 
     def get_dataloader(
         self,
@@ -104,24 +128,28 @@ class LesionDetectionTrainer(DetectionTrainer):
         mode: str = "train",
     ) -> InfiniteDataLoader:
         # only use weighted loader for training
-        if mode != "train" or self._weight_by_id is None:
+        if mode != "train" or self._scheme == "stock":
             return super().get_dataloader(dataset_path, batch_size, rank, mode)
+
         if rank != -1:
             raise ValueError("Weighted sampling supports single-process training only.")
 
-        # build the dataset and line up the weights with the order it loaded
+        # build the dataset and line up the classes with the order it loaded
         dataset = cast(YOLODataset, self.build_dataset(dataset_path, mode, batch_size))
 
-        # weights are per record, so line them up with the order the dataset loaded
         # pyright doesnt know YOLODataset has an im_files attribute
         files = cast(list[str], dataset.im_files)  # pyright: ignore[reportUnknownMemberType]
         ids = [Path(file).stem for file in files]
-        if set(ids) != self._weight_by_id.keys() or len(ids) != len(set(ids)):
+        if set(ids) != self._train_classes.keys() or len(ids) != len(set(ids)):
             raise ValueError(
                 f"Training images do not match the training records: found {len(ids)} "
-                f"images for {len(self._weight_by_id)} records."
+                f"images for {len(self._train_classes)} records."
             )
-        weights = np.array([self._weight_by_id[i] for i in ids], dtype=np.float64)
+
+        self.train_class_ids = np.array([self._train_classes[i] for i in ids])
+        weights = build_sampling_weights(
+            self.train_class_ids.tolist(), self._target_fraction
+        )
 
         # pyright doesnt know self.args has seed and workers attributes
         args = cast(Any, self.args)  # pyright: ignore[reportUnknownMemberType]
@@ -142,7 +170,50 @@ class LesionDetectionTrainer(DetectionTrainer):
             prefetch_factor=4 if workers > 0 else None,
         )
 
+    def validate(self) -> tuple[dict[str, float] | None, float | None]:
+        """Validate, scoring the epoch by mAP50:95 alone so best.pt follows that metric.
 
-def trainer_overrides(config: Mapping[str, Any]) -> dict[str, Any]:
-    """Flatten a resolved run config into the keyword overrides Ultralytics expects."""
-    raise NotImplementedError("TODO")
+        Ultralytics' default fitness weights mAP50 at 10% and mAP50:95 at 90%. When an
+        epoch exactly ties the best score, its fitness is nudged down by one step so
+        the earliest epoch keeps best.pt, since Ultralytics overwrites it on equality.
+        """
+        # Ultralytics' trainer attributes are untyped, so reach them through Any
+        trainer = cast(Any, self)
+        metrics: dict[str, float] | None = trainer.validator(trainer)
+        if metrics is None:
+            return None, None
+        metrics.pop("fitness", None)
+
+        fitness = float(metrics[MAP_50_95])
+        best: float | None = trainer.best_fitness
+        if best is None or fitness > best:
+            trainer.best_fitness = fitness
+        elif fitness == best:
+            fitness = float(np.nextafter(fitness, -np.inf))
+
+        return metrics, fitness
+
+
+def trainer_overrides(
+    config: Mapping[str, Any], model_path: Path, run_dir: Path
+) -> dict[str, Any]:
+    """Flatten a resolved run config into the keyword overrides Ultralytics expects.
+
+    Args:
+        config (Mapping[str, Any]): The resolved config.
+        model_path (Path): The local starting checkpoint.
+        run_dir (Path): Where this run's outputs go. It must not exist yet.
+
+    Returns:
+        dict[str, Any]: Training, augmentation, data and output settings.
+    """
+    return {
+        **config["train"],
+        **config["augment"],
+        "model": str(model_path),
+        "data": str(config["data"]),
+        "seed": config["seed"],
+        "project": str(run_dir.parent.resolve()),
+        "name": run_dir.name,
+        "exist_ok": False,
+    }
