@@ -4,7 +4,7 @@ condition: base
 seed: 47041585
 data: artifacts/isic2018/yolo/dataset.yaml
 split_manifest: artifacts/isic2018/split_manifest.csv
-model: yolo11n.pt
+model: weights/yolo11n.pt
 classes: [Benign, Malignant]
 
 train:
@@ -25,6 +25,8 @@ train:
   workers: 8
   rect: false
   deterministic: true
+  cache: ram # keeps the resized images in memory, so full-size JPEGs are decoded once
+  plots: false # Ultralytics' own plots need a font download; the project plots from results.csv
 
 # Ultralytics augmentation defaults must be set explicitly.
 # b0.yaml turns every one of them off.
