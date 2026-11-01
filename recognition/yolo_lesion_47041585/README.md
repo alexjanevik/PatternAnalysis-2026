@@ -81,7 +81,7 @@ yolo_lesion_47041585/
 Training was performed on the UQ Rangpur cluster (Alma Linux 8.10) using an NVIDIA A100 GPU (40GB VRAM) with CUDA 13.1.
 > **NOTE:** Pilot tests were also performed using MPS on an M1 MacBook Air, though these results are not reported here due to the huge discrepancy in performance. Just keep in mind that it is possible to run this project using MPS. Windows compatibility has not been tested.
 
-| Dependency        | Version           | Use-case case                                                                             |
+| Dependency        | Version           | Use-case                                                                                  |
 |-------------------|------------------:|-------------------------------------------------------------------------------------------|
 | Python            | 3.12              | Runtime environment                                                                       |
 | ultralytics       | 8.4.182           | YOLO11 detector, trainer, validator                                                       |
