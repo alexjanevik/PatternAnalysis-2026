@@ -5,7 +5,7 @@ Normal runs train and validate only. Test evaluation lives behind the guarded pa
 helpers/evaluation.py to be used once the selection manifest is frozen.
 
 Usage:
-    uv run train --config configs/base.yaml --config configs/b0.yaml [--pilot]
+    uv run train --config configs/base.yaml --config configs/b0.yaml [--pilot] [--seed N]
 """
 
 import argparse
@@ -275,14 +275,21 @@ def run_experiment(config: Mapping[str, Any]) -> Path:
     return run_dir
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, action="append", required=True)
     parser.add_argument("--pilot", action="store_true", help="short smoke-test run")
     parser.add_argument("--device", help="Ultralytics device, e.g. cpu, mps or 0")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="training seed, replacing the config's; the data split is unaffected",
+    )
+    args = parser.parse_args(argv)
 
     config = resolve_training_config(args.config, args.pilot)
+    if args.seed is not None:
+        config["seed"] = args.seed
     if args.device:
         config["train"]["device"] = args.device
     print(f"Run complete: {run_experiment(config)}")

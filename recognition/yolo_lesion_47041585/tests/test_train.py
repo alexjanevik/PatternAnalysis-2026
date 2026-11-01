@@ -15,6 +15,7 @@ from ultralytics import YOLO
 from tests.factories import make_classes
 from tests.test_trainer import write_dataset
 from yolo_lesion_47041585.train import (
+    main,
     resolve_training_config,
     run_experiment,
     run_id,
@@ -56,6 +57,27 @@ def test_sampling_summary_counts_each_epoch():
             "unique_images": 1,
         },
     ]
+
+
+def test_seed_option_replaces_the_config_seed_and_names_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    seen: list[dict[str, Any]] = []
+
+    def record(config: Any) -> Path:
+        seen.append(dict(config))
+        return Path(run_id(config))
+
+    monkeypatch.setattr("yolo_lesion_47041585.train.run_experiment", record)
+    base = ["--config", str(CONFIGS / "base.yaml"), "--config", str(CONFIGS / "a0.yaml")]
+
+    assert main(base) == 0
+    assert main([*base, "--seed", "47041587"]) == 0
+
+    assert [c["seed"] for c in seen] == [47041585, 47041587]
+    assert [run_id(c) for c in seen] == ["A0-s47041585", "A0-s47041587"]
+    # nothing else about the run changes
+    assert {**seen[0], "seed": 0} == {**seen[1], "seed": 0}
 
 
 def tiny_config(root: Path, condition: str) -> dict[str, Any]:
