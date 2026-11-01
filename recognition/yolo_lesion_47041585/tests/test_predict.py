@@ -8,10 +8,16 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
+import numpy as np
 import pytest
+import torch
+from ultralytics.models.yolo.detect import DetectionPredictor
 
 from tests.test_train import tiny_config
+from yolo_lesion_47041585.modules import LesionPredictor
 from yolo_lesion_47041585.predict import load_run, main, predict_cases
 from yolo_lesion_47041585.train import run_experiment
 
@@ -91,3 +97,27 @@ def test_the_command_refuses_a_non_empty_output_folder(
     with pytest.raises(FileExistsError):
         main(["--checkpoint", str(trained[0]), "--images", str(trained[1]),
               "--output", str(tmp_path)])  # fmt: skip
+
+
+def test_malignant_boxes_survive_when_benign_scores_higher():
+    """One candidate box scoring benign 0.8 and malignant 0.15 gives a box for each class.
+
+    Ultralytics' own predictor keeps only the benign one, hiding the malignant score the
+    triage policy needs, while its validator counts both.
+    """
+    names = {0: "Benign", 1: "Malignant"}
+    # one anchor: centre x, y, width, height in pixels of a 64x64 input, then class scores
+    preds = torch.tensor([[[32.0], [32.0], [20.0], [20.0], [0.8], [0.15]]])
+    image = np.zeros((64, 64, 3), np.uint8)
+    batch = (["ISIC_1.jpg"], [image], [""])
+
+    def classes_kept(predictor: DetectionPredictor | LesionPredictor) -> list[float]:
+        untyped: Any = predictor
+        untyped.model = SimpleNamespace(names=names)
+        untyped.batch = batch
+        [result] = untyped.postprocess(preds, torch.zeros(1, 3, 64, 64), [image])
+        return sorted(result.boxes.cls.tolist())
+
+    overrides = dict(task="detect", conf=0.001, iou=0.7, max_det=100)
+    assert classes_kept(DetectionPredictor(overrides=overrides)) == [0.0]
+    assert classes_kept(LesionPredictor(overrides=overrides)) == [0.0, 1.0]

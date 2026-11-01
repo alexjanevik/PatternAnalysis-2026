@@ -19,7 +19,7 @@ from ultralytics.engine.results import Results
 
 from yolo_lesion_47041585.dataset import NormalizedBox
 from yolo_lesion_47041585.helpers.visualisation import draw_detections
-from yolo_lesion_47041585.modules import validate_model_contract
+from yolo_lesion_47041585.modules import LesionPredictor, validate_model_contract
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 
@@ -154,6 +154,7 @@ def predict_cases(
             device=device,
             stream=True,
             verbose=False,
+            predictor=LesionPredictor,
         ),
     )
 

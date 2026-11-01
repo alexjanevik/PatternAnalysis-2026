@@ -19,8 +19,8 @@ from numpy.typing import NDArray
 from ultralytics import YOLO
 from ultralytics.data.build import InfiniteDataLoader, seed_worker
 from ultralytics.data.dataset import YOLODataset
-from ultralytics.models.yolo.detect import DetectionTrainer
-from ultralytics.utils import DEFAULT_CFG
+from ultralytics.models.yolo.detect import DetectionPredictor, DetectionTrainer
+from ultralytics.utils import DEFAULT_CFG, nms, ops
 
 from yolo_lesion_47041585.dataset import EpochSampler, build_sampling_weights
 
@@ -197,6 +197,35 @@ class LesionDetectionTrainer(DetectionTrainer):
             fitness = float(np.nextafter(fitness, -np.inf))
 
         return metrics, fitness
+
+
+class LesionPredictor(DetectionPredictor):
+    """DetectionPredictor that matches the validator's non-maximum suppression.
+
+    Ultralytics' predictor keeps only the highest-scoring class for each candidate box,
+    while its validator (`multi_label=True`) keeps a box for every class scoring above
+    the confidence floor. This model scores a malignant lesion about 0.8 benign and 0.1
+    to 0.2 malignant on the same box, so the predictor dropped the malignant boxes that
+    the triage policy needs and validation counted. This keeps them, so predictions and
+    validation agree. NMS is still applied per class.
+    """
+
+    def postprocess(self, preds: Any, img: Any, orig_imgs: Any, **kwargs: Any) -> Any:
+        args = cast(Any, self.args)  # pyright: ignore[reportUnknownMemberType]
+        kept: Any = nms.non_max_suppression(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            preds,
+            args.conf,
+            kwargs.pop("iou", args.iou),
+            args.classes,
+            args.agnostic_nms,
+            multi_label=True,
+            max_det=args.max_det,
+            nc=0,
+            end2end=getattr(self.model, "end2end", False),
+        )
+        if not isinstance(orig_imgs, list):  # a batch tensor, not a list of images
+            orig_imgs = ops.convert_torch2numpy_batch(orig_imgs)[..., ::-1]  # pyright: ignore[reportUnknownMemberType]
+        return self.construct_results(kept, img, orig_imgs, **kwargs)  # pyright: ignore[reportUnknownMemberType]
 
 
 def trainer_overrides(
