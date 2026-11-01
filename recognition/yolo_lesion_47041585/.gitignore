@@ -5,3 +5,4 @@ __pycache__/
 artifacts/
 runs/
 weights/
+scripts/sync.sh
