@@ -1536,7 +1536,9 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy" },
     { name = "pillow" },
+    { name = "pyyaml" },
     { name = "rich" },
+    { name = "torch" },
     { name = "ultralytics" },
 ]
 
@@ -1550,7 +1552,9 @@ dev = [
 requires-dist = [
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "pillow", specifier = ">=13.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=15.0.0" },
+    { name = "torch", specifier = ">=2.14.1" },
     { name = "ultralytics", specifier = ">=8.4.182" },
 ]
 
