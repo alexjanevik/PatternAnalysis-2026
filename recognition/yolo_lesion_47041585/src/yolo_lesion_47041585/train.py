@@ -115,8 +115,8 @@ def run_id(config: Mapping[str, Any]) -> str:
 
 
 def collect_run_metadata(config: Mapping[str, Any], model_path: Path) -> dict[str, Any]:
-    """Provenance for a run: source revision, split hash, package/CUDA/GPU versions,
-    starting-checkpoint hash and seed.
+    """Provenance for a run: split hash, package/CUDA/GPU versions, starting-checkpoint
+    hash and seed.
 
     Args:
         config (Mapping[str, Any]): The resolved config.
@@ -133,12 +133,6 @@ def collect_run_metadata(config: Mapping[str, Any], model_path: Path) -> dict[st
         "seed": config["seed"],
         "pilot": bool(config.get("pilot")),
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "source": {
-            "revision": _command_output(["git", "rev-parse", "HEAD"]),
-            "uncommitted_changes": bool(
-                _command_output(["git", "status", "--porcelain"])
-            ),
-        },
         "split_manifest": {
             "path": str(config["split_manifest"]),
             "sha256": file_sha256(Path(config["split_manifest"])),
