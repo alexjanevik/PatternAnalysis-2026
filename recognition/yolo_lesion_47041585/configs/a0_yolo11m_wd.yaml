@@ -1,0 +1,6 @@
+# A0-m-wd: A0 on YOLO11m with stronger weight decay. Differs from A0-m only in
+# train.weight_decay, and from A0-wd only in the starting checkpoint.
+condition: A0-m-wd
+model: weights/yolo11m.pt
+train:
+  weight_decay: 0.05

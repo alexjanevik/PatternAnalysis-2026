@@ -47,6 +47,15 @@ def test_the_weight_decay_variant_changes_only_weight_decay():
     assert resolve("a0_wd")["condition"] == "A0-wd"  # its runs get their own folders
 
 
+def test_the_yolo11m_variants_change_one_setting_each():
+    assert differences("a0", "a0_yolo11m") == {"model"}
+    assert differences("a0_yolo11m", "a0_yolo11m_wd") == {"train.weight_decay"}
+    assert differences("a0_wd", "a0_yolo11m_wd") == {"model"}
+    assert resolve("a0_yolo11m")["model"] == "weights/yolo11m.pt"
+    names = {resolve(c)["condition"] for c in ("a0", "a0_wd", "a0_yolo11m", "a0_yolo11m_wd")}
+    assert len(names) == 4  # each gets its own run folders
+
+
 def test_b0_is_a_reference_that_differs_in_two_settings():
     """B0 vs A0 changes augmentation and the sampling scheme, so it is not a clean contrast."""
     changed = differences("b0", "a0")

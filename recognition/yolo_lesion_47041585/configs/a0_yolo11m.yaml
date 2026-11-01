@@ -1,0 +1,4 @@
+# A0-m: A0 on YOLO11m instead of YOLO11n. The only change from A0 is the starting checkpoint
+# (the COCO-pretrained detection weights, downloaded to weights/ on first use).
+condition: A0-m
+model: weights/yolo11m.pt
