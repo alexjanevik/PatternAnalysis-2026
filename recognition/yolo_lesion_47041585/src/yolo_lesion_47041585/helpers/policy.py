@@ -36,6 +36,7 @@ Reason = Literal[
     "multiple_benign",
     "conflicting_classes",
     "weak_malignant_only",
+    "malignant_present",
 ]
 Status = Literal["feasible", "infeasible"]
 Basis = Literal[
@@ -47,6 +48,7 @@ MONITOR_REASONS: tuple[Reason, ...] = (
     "multiple_benign",
     "conflicting_classes",
     "weak_malignant_only",
+    "malignant_present",
 )
 
 # the fixed search grid: the confidence floor, 0.01 to 0.99 in steps of 0.01, and 1.0
@@ -69,11 +71,15 @@ class PolicySpec:
         benign_threshold (float): `tau_b`, the confidence at or above which a single
             benign detection clears the image.
         version (str): Routing-rule version.
+        clear_guard (float | None): Rule "v2" only. If set, an image is cleared only while
+            its best malignant confidence is below this value, otherwise it is monitored.
+            None leaves the rule unguarded.
     """
 
     malignant_threshold: float
     benign_threshold: float
     version: str = ROUTING_RULE_VERSION
+    clear_guard: float | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +123,7 @@ def route_from_inputs(
     malignant_threshold: float,
     benign_threshold: float,
     version: str = ROUTING_RULE_VERSION,
+    clear_guard: float | None = None,
 ) -> tuple[Route, Reason]:
     """A routing rule, applied to summarised detections.
 
@@ -134,6 +141,8 @@ def route_from_inputs(
        Weaker malignant boxes and other benign boxes are ignored.
     3. Otherwise monitor, with the reason: no detection, only weak malignant detections
        (no benign box), or a best benign detection that is too weak.
+    With a `clear_guard`, step 2 also needs the best malignant confidence to be below the
+    guard; a confident benign image that fails this is monitored as "malignant_present".
 
     Raises:
         ValueError: If the version is unknown.
@@ -147,6 +156,8 @@ def route_from_inputs(
         return "urgent", "malignant_alert"
     if version == "v2":
         if inputs.n_benign and inputs.max_benign_conf >= benign_threshold:
+            if clear_guard is not None and inputs.max_malignant_conf >= clear_guard:
+                return "monitor", "malignant_present"
             return "clear", "confident_benign"
         if inputs.n_detections == 0:
             return "monitor", "no_detection"
@@ -188,6 +199,7 @@ def route_case(
         spec.malignant_threshold,
         spec.benign_threshold,
         spec.version,
+        spec.clear_guard,
     )
 
 
@@ -341,6 +353,7 @@ def _score(
     benign_threshold: float,
     images: list[ImageRouting] | None = None,
     version: str = ROUTING_RULE_VERSION,
+    clear_guard: float | None = None,
 ) -> OperatingPoint:
     """Score one threshold pair, optionally recording each image's outcome."""
     routes = {BENIGN: Counter[Route](), MALIGNANT: Counter[Route]()}
@@ -351,7 +364,7 @@ def _score(
 
     for item in evidence:
         route, reason = route_from_inputs(
-            item.inputs, malignant_threshold, benign_threshold, version
+            item.inputs, malignant_threshold, benign_threshold, version, clear_guard
         )
         threshold = (
             malignant_threshold if item.true_class == MALIGNANT else benign_threshold
@@ -447,6 +460,7 @@ def evaluate_policy(
         spec.benign_threshold,
         images,
         spec.version,
+        spec.clear_guard,
     )
 
     return PolicyEvaluation(point, images)
