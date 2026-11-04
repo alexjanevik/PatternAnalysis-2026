@@ -9,10 +9,6 @@ The output directory must be new or empty to allow comparings reruns.
 
 Usage:
     uv run python -m yolo_lesion_47041585.audit [--source DIR] [--output DIR]
-
-    or;
-
-    python -m yolo_lesion_47041585.audit [--source DIR] [--output DIR]
 """
 
 import argparse
