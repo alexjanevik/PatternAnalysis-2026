@@ -6,5 +6,4 @@ artifacts/
 runs/
 weights/
 scripts/sync.sh
-tests/
 slurm-*.out
