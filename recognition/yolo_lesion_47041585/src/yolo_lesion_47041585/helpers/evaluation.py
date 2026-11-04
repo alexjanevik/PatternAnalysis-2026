@@ -6,9 +6,11 @@ on this module; the remaining functions are placeholders for the final evaluatio
 """
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+import numpy as np
 
 from yolo_lesion_47041585.dataset import NormalizedBox
 from yolo_lesion_47041585.predict import Detection
@@ -126,9 +128,74 @@ def evaluate_detection(*args: Any, **kwargs: Any) -> Any:
     raise NotImplementedError("TODO")
 
 
-def bootstrap_by_patient(*args: Any, **kwargs: Any) -> Any:
-    """Patient-level bootstrap intervals."""
-    raise NotImplementedError("TODO")
+@dataclass(frozen=True)
+class BootstrapResult:
+    """The statistics of a patient-cluster bootstrap.
+
+    Attributes:
+        draws (dict[str, list[float]]): For each named statistic, its value in every valid
+            resample. The lists are aligned, so draw `i` of one statistic and draw `i` of
+            another come from the same resample, which is what paired differences need.
+        n_valid (int): Resamples in which every statistic was defined.
+        n_repeats (int): Resamples attempted. The rest had an undefined statistic, such as
+            a class that no sampled patient had, and were dropped, never counted as zero.
+    """
+
+    draws: dict[str, list[float]]
+    n_valid: int
+    n_repeats: int
+
+
+def bootstrap_by_patient(
+    groups: Sequence[Sequence[int]],
+    statistic: Callable[[list[int]], Mapping[str, float | None]],
+    repeats: int = 2000,
+    seed: int = 47041585,
+) -> BootstrapResult:
+    """Resample whole patients with replacement and recompute statistics each time.
+
+    Images of one patient are correlated, so the unit of resampling is the patient, and
+    a patient drawn twice contributes all their images twice. The same resamples are used
+    for every statistic, so differences between models are paired.
+
+    Args:
+        groups (Sequence[Sequence[int]]): One entry per patient, holding the indices of
+            that patient's images.
+        statistic (Callable[[list[int]], Mapping[str, float | None]]): Given the indices
+            of a resample (with repeats), returns named statistics, None if undefined.
+        repeats (int): How many resamples to draw.
+        seed (int): Seed of the random generator, fixed so the intervals reproduce.
+
+    Returns:
+        BootstrapResult: The values of every statistic in every valid resample.
+
+    Raises:
+        ValueError: If there are no patients.
+    """
+    if not groups:
+        raise ValueError("Cannot resample no patients.")
+    rng = np.random.default_rng(seed)
+    draws: dict[str, list[float]] = {}
+    n_valid = 0
+    for _ in range(repeats):
+        picked: list[int] = rng.integers(0, len(groups), size=len(groups)).tolist()
+        indices = [i for patient in picked for i in groups[patient]]
+        values = statistic(indices)
+        if any(v is None for v in values.values()):
+            continue
+        n_valid += 1
+        for name, value in values.items():
+            draws.setdefault(name, []).append(float(value))  # pyright: ignore[reportArgumentType]
+    return BootstrapResult(draws, n_valid, repeats)
+
+
+def percentile_interval(values: Sequence[float], level: float = 0.95) -> tuple[float, float]:
+    """The central `level` interval of bootstrap draws (2.5th to 97.5th percentile)."""
+    if not values:
+        raise ValueError("No draws to summarise.")
+    tail = (1 - level) / 2 * 100
+    low, high = np.percentile(values, [tail, 100 - tail])
+    return float(low), float(high)
 
 
 def profile_inference(*args: Any, **kwargs: Any) -> Any:
