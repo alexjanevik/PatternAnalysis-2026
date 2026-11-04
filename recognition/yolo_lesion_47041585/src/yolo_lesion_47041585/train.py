@@ -5,7 +5,9 @@ Normal runs train and validate only. Test evaluation lives behind the guarded pa
 helpers/evaluation.py to be used once the selection manifest is frozen.
 
 Usage:
-    uv run train --config configs/base.yaml --config configs/b0.yaml [--pilot] [--seed N]
+    uv run train --config configs/b0.yaml [--pilot] [--seed N]
+
+configs/base.yaml is always applied first, so each --config only names what it changes.
 """
 
 import argparse
@@ -38,6 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIR = Path("runs")
 # the first epoch carries start-up costs, so two more give a steady-state time
 PILOT_EPOCHS = 3
+BASE_CONFIG = Path(__file__).resolve().parents[2] / "configs" / "base.yaml"
 
 
 def _merge(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
@@ -59,15 +62,18 @@ def resolve_training_config(
 ) -> dict[str, Any]:
     """Merge YAML configs left to right into one fully resolved config.
 
+    `configs/base.yaml` is always applied first, so it need not be listed.
+
     Args:
-        config_paths (Sequence[Path]): Base config first, then the condition override.
+        config_paths (Sequence[Path]): Condition overrides, applied in order.
         pilot (bool): Shorten the run for the smoke test and label it as a pilot.
 
     Returns:
         dict[str, Any]: The resolved config, to be saved with the run.
     """
     config: dict[str, Any] = {}
-    for path in config_paths:
+    layers = [path for path in config_paths if path.resolve() != BASE_CONFIG.resolve()]
+    for path in [BASE_CONFIG, *layers]:
         config = _merge(config, yaml.safe_load(path.read_text()) or {})
 
     sampling = config["sampling"]

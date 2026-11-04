@@ -17,4 +17,4 @@ CONFIG="${1:?usage: sbatch scripts/train.slurm <condition config> [--pilot]}"
 
 export PATH="$HOME/.local/bin:$PATH" # where uv usually installs, and batch shells may not have it
 nvidia-smi
-uv run --frozen train --config configs/base.yaml --config "$CONFIG" "${@:2}"
+uv run --frozen train --config "$CONFIG" "${@:2}"
