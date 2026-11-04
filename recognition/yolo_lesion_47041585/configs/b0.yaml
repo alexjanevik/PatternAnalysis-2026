@@ -1,5 +1,4 @@
-# B0: no random augmentation, plain Ultralytics shuffling. Reference only: it differs from A0
-# in both augmentation and sampling scheme, so do not read B0 vs A0 as an augmentation effect.
+# B0: the baseline. No random augmentation and plain Ultralytics shuffling.
 condition: B0
 sampling:
   scheme: stock

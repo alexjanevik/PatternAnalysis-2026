@@ -1,2 +1,4 @@
-# A0: modest augmentation (base.yaml defaults), natural class balance drawn with replacement.
+# A0: the starting candidate. Against the baseline B0 it changes two things: modest
+# augmentation (the base.yaml defaults) and drawing each epoch with replacement, keeping
+# the natural class balance. The other conditions each change one thing from A0.
 condition: A0
