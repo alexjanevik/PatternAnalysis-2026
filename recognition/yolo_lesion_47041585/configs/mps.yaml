@@ -4,6 +4,6 @@
 # accumulation). The different batch size, the lack of mixed precision and MPS operations
 # without deterministic implementations mean results are NOT comparable with Rangpur runs.
 train:
-  batch: 8
-  nbs: 8
-  device: mps
+  batch: 8 # half the base batch size, so it fits and runs on the Apple GPU
+  nbs: 8 # nominal batch equal to batch, so there is still no gradient accumulation
+  device: mps # train on the Apple Metal GPU instead of CUDA
