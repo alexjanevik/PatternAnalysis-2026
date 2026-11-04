@@ -20,8 +20,8 @@ from yolo_lesion_47041585.predict import Detection
 BENIGN: int = CLASS_MAPPING["Benign"]
 MALIGNANT: int = CLASS_MAPPING["Malignant"]
 
-ROUTING_RULE_VERSION = "v1"  # the primary rule
-ROUTING_RULES = ("v1", "v2")  # v2 is a declared alternative, always reported beside v1
+ROUTING_RULE_VERSION = "strict"  # the primary rule
+ROUTING_RULES = ("strict", "lenient")  # lenient is a declared alternative, always reported beside strict
 MATCH_IOU = 0.5  # a detection localises its target at or above this IoU
 TOLERANCE = (
     1e-9  # so a rate that equals a target in exact arithmetic is not missed by rounding
@@ -71,7 +71,7 @@ class PolicySpec:
         benign_threshold (float): `tau_b`, the confidence at or above which a single
             benign detection clears the image.
         version (str): Routing-rule version.
-        clear_guard (float | None): Rule "v2" only. If set, an image is cleared only while
+        clear_guard (float | None): Rule "lenient" only. If set, an image is cleared only while
             its best malignant confidence is below this value, otherwise it is monitored.
             None leaves the rule unguarded.
     """
@@ -127,16 +127,16 @@ def route_from_inputs(
 ) -> tuple[Route, Reason]:
     """A routing rule, applied to summarised detections.
 
-    Version "v1", the primary rule:
+    Version "strict", the primary rule:
     1. A malignant detection at or above the malignant threshold gives urgent review.
     2. Otherwise exactly one detection, benign and at or above the benign threshold,
        gives clear.
     3. Otherwise monitor, with the reason: no detection, a benign detection that is too
        weak, several benign detections, both classes present, or only weak malignant ones.
 
-    Version "v2", the declared alternative, which has no fixed floor and does not treat
+    Version "lenient", the declared alternative, which has no fixed floor and does not treat
     extra boxes as conflict, so each threshold alone decides what counts as confident:
-    1. As in v1, a malignant detection at or above the malignant threshold gives urgent.
+    1. As in strict, a malignant detection at or above the malignant threshold gives urgent.
     2. Otherwise the best benign detection at or above the benign threshold gives clear.
        Weaker malignant boxes and other benign boxes are ignored.
     3. Otherwise monitor, with the reason: no detection, only weak malignant detections
@@ -154,7 +154,7 @@ def route_from_inputs(
 
     if inputs.n_malignant and inputs.max_malignant_conf >= malignant_threshold:
         return "urgent", "malignant_alert"
-    if version == "v2":
+    if version == "lenient":
         if inputs.n_benign and inputs.max_benign_conf >= benign_threshold:
             if clear_guard is not None and inputs.max_malignant_conf >= clear_guard:
                 return "monitor", "malignant_present"
@@ -481,7 +481,7 @@ def search_policy(
         predictions (Sequence[Detection]): Detections for every image, at the fixed floor.
         ground_truth (Sequence[Detection]): The annotated target of each image.
         threshold_grid (Iterable[float]): Values tried for both thresholds.
-        version (str): The routing rule to score, "v1" or "v2".
+        version (str): The routing rule to score, "strict" or "lenient".
 
     Returns:
         list[OperatingPoint]: One row per (malignant, benign) pair, ordered by malignant
