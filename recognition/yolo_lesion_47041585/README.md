@@ -499,7 +499,7 @@ Other trade-offs were smaller:
 
 ### Recommendation
 
-I recommend `A0` (YOLO11n with modest augmentation and sampling with replacement) as the detector for further development, but not as a clinical triage tool in its current form. It meets the localisation and latency targets, but at the sensitivity needed to be useful as a screening tool it misses about a third of malignant lesions. Even the evidence behind even that figure is weak (36 malignant test images, one seed per model, and a clear shift between the validation and test operating points).
+I recommend `A0` (YOLO11n with modest augmentation and sampling with replacement) as the detector for further development, but not as a clinical triage tool in its current form. It meets the localisation and latency targets, but at the sensitivity needed to be useful as a screening tool it misses about a third of malignant lesions. Even the evidence behind that figure is weak (36 malignant test images, one seed per model, and a clear shift between the validation and test operating points).
 
 If this particular model were used at all, it should be as a secondary reader that flags cases for review. The operating threshold should be chosen by clinicians according to how they weigh a missed malignancy against an unnecessary referral.
 
@@ -507,9 +507,9 @@ If this particular model were used at all, it should be as a secondary reader th
 
 - **More data**: The largest constraint is 241 malignant images after patient-independent filtering. Recovering patient identifiers, or adding another patient-independent dataset, would help more than any tuning. There are more ISIC datasets available and particularly the newer ones are far more complete when it comes to patient identifiers. These datasets are also significantly larger than the 2018 one, so they would provide more malignant images to train on.
 - **Test `A0-cls2` properly.** It showed the best validation sensitivity (69%, ahead of `A0` in all three seeds) but cannot be separated from noise with 36 malignant validation images. Evaluating it with cross-validation or on a larger independent split would settle this.
-- **More seeds on tes.**: Only seed `47041585` was evaluated on test for each model.
+- **More seeds on test**: Only seed `47041585` was evaluated on test for each model.
 - **Select thresholds more robustly**: `tau_m` was chosen on 189 validation images. A cross-validated or larger-sample threshold selection would reduce the risk of a shift in operating point between validation and test.
-- **Two-stage detection**: A two-stage detector could be used to first localise lesions and then classify them. This would allow the localisation to be optimised separately from the classification, which may improve performance. On top of this, full-frame lesions were a point of failure. A two-stage detector could fist localise bounding boxes and then classify a lesion cropped to the bounding box. This is the most appealing next step I can see, but it would require an complete shift in the model architecture and training pipeline.
+- **Two-stage detection**: A two-stage detector could be used to first localise lesions and then classify them. This would allow the localisation to be optimised separately from the classification, which may improve performance. On top of this, full-frame lesions were a point of failure. A two-stage detector could classify a lesion cropped to the bounding box. This is the most appealing next step I can see, but it would require a complete shift in the model architecture and training pipeline.
 
 ## References
 
