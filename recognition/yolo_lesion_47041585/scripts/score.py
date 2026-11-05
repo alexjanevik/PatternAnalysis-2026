@@ -1,55 +1,11 @@
-"""Score every run on the validation split and lay the results out to read. No verdict.
+"""Score every run on the validation split and write tables to read. No verdict.
 
-For each run (condition and seed found in runs/, or the ones you list) it scores the best
-checkpoint's validation predictions, then prints and saves:
-  * a table by condition: mean, spread and range over seeds for each measure;
-  * the difference of every condition from a reference condition (differences only);
-  * a table of every individual run;
-  * patient-level 95% intervals on AUC and Sens@<=30% and on their differences from the
-    reference (whole patients resampled, 2,000 times);
-  * the trade-off between biopsy burden and sensitivity for a baseline and a candidate on
-    one named seed: reference points, the full curve, an optional point you choose, and
-    what the clear guard changes.
-It applies no rule and names no candidate: the numbers are for you to read.
-
-It reads only the validation split. Predictions are cached per checkpoint (the cache file
-name holds the checkpoint's hash), so a rerun reloads them instead of running the model.
+Definitions, routing rules and justification are in artifacts/score-notes.md. assets/scores.md
+holds only titles and tables.
 
     uv run python scripts/score.py --device 0                      # everything in runs/
     uv run python scripts/score.py --conditions A0 O35 --seeds 1 2  # just these
     uv run python scripts/score.py --tau-m 0.19 --tau-c 0.3          # quantify a chosen point
-
-TRADE-OFF (candidate and baseline, on --primary-seed; the other seeds only add a band)
-  Biopsy burden   benign images routed urgent, as a share of benign images.
-  Sensitivity     malignant lesions with a correctly placed malignant box at or above tau_m.
-  Monitor         images the rule neither alerts nor clears; reported, not counted as biopsies.
-  Cleared         images routed clear; a cleared malignant lesion is the safety cost.
-  Clear guard     optional tau_c: an image is cleared only while its best malignant
-                  confidence is below tau_c, otherwise it is monitored. It never changes
-                  sensitivity or burden, only how clear and monitor share the rest.
-
-MEASURES (all on validation images)
-  AUC            how well the highest malignant-class confidence in an image separates
-                 malignant from benign images (0.5 is chance, 1.0 is perfect).
-  Sens@<=30%     the highest share of malignant lesions that get a correctly placed
-                 malignant box above the alert threshold, among thresholds that escalate
-                 (route urgent or monitor) at most 30% of benign images, the plan's benign
-                 escalation b. Uses the lenient routing rule (see below).
-  Alert@>=90%    the lowest benign escalation at any threshold that reaches 90% sensitivity.
-                 Also the lenient rule. "unreachable" if no threshold gets there.
-  IoU            mean overlap (IoU) of correctly classified, correctly placed boxes with the
-                 annotated lesion, at the Sens@<=30% operating point, per class.
-  strict min escal. the lowest benign escalation any threshold pair can reach under the plan's
-                 own strict routing rule. It is high for every run, which is why the lenient rule is also used.
-  mAP50:95       the detector's own best validation score, and training time, from runs/.
-
-WHY TWO ROUTING RULES
-  The strict rule (the plan's) clears an image only if it has exactly one detection. At the 0.001
-  confidence floor almost every image has several, so the strict rule clears almost nothing and benign
-  escalation is near 100% whatever the model does: it cannot tell the runs apart. The lenient rule
-  drops the "exactly one detection" condition, which makes the trade-off between
-  sensitivity and benign escalation measurable. The lenient rule's escalation is therefore NOT the plan's
-  strict-rule escalation; read it only as a trade-off.
 """
 
 import argparse
@@ -83,9 +39,28 @@ from yolo_lesion_47041585.helpers.validation import (
 )
 from yolo_lesion_47041585.predict import Detection
 
-PREFERRED_ORDER = ("B0", "A0", "A0-wd", "O35", "O50", "A0-m", "A0-m-wd")  # display order only
-RUN_NAME = re.compile(r"^(?P<condition>.+)-s(?P<seed>\d+)$")  # pilots end in "-pilot" and don't match
-MEASURES = ("auc", "s30", "alert_at_90", "iou_benign", "iou_malignant", "strict_min_escalation", "map50_95", "train_minutes")
+PREFERRED_ORDER = (
+    "B0",
+    "A0",
+    "A0-wd",
+    "O35",
+    "O50",
+    "A0-m",
+    "A0-m-wd",
+)  # display order only
+RUN_NAME = re.compile(
+    r"^(?P<condition>.+)-s(?P<seed>\d+)$"
+)  # pilots end in "-pilot" and don't match
+MEASURES = (
+    "auc",
+    "s30",
+    "alert_at_90",
+    "iou_benign",
+    "iou_malignant",
+    "strict_min_escalation",
+    "map50_95",
+    "train_minutes",
+)
 
 
 @dataclass(frozen=True)
@@ -130,7 +105,9 @@ def prediction_scores(
         raise ValueError("Scoring needs at least one malignant and one benign image.")
     wins = sum((m > b) + 0.5 * (m == b) for m in malignant for b in benign)
 
-    lenient = select_operating_point(search_policy(predictions, ground_truth, version="lenient"))
+    lenient = select_operating_point(
+        search_policy(predictions, ground_truth, version="lenient")
+    )
     strict = search_policy(predictions, ground_truth, version="strict")
     at_30 = lenient.workload_alternative
     at_90 = lenient.sensitivity_alternative
@@ -178,7 +155,9 @@ def summarise(values: Sequence[float]) -> dict[str, float | int]:
     }
 
 
-def by_condition(runs: Sequence[RunScores]) -> dict[str, dict[str, dict[str, float | int]]]:
+def by_condition(
+    runs: Sequence[RunScores],
+) -> dict[str, dict[str, dict[str, float | int]]]:
     """Mean, spread and range of each measure over a condition's seeds."""
     out: dict[str, dict[str, dict[str, float | int]]] = {}
     for condition in ordered(sorted({r.condition for r in runs})):
@@ -197,7 +176,7 @@ def _pct(x: float) -> str:
 
 
 def _spread(stat: Mapping[str, float], percent: bool = False) -> str:
-    """"mean ± SD [min–max]", as percentages or to three decimals."""
+    """ "mean ± SD [min–max]", as percentages or to three decimals."""
 
     def fmt(v: float) -> str:
         return f"{v:.0%}" if percent else f"{v:.3f}"
@@ -206,24 +185,23 @@ def _spread(stat: Mapping[str, float], percent: bool = False) -> str:
 
 
 def render(
-    runs: Sequence[RunScores], reference: str | None, validation: str, missing: Sequence[str]
+    runs: Sequence[RunScores],
+    reference: str | None,
 ) -> str:
-    """The whole report as Markdown, which also reads fine as plain text."""
+    """The report as Markdown: titles and tables only."""
     summary = by_condition(runs)
-    lines = [f"# Validation scores\n\n{validation}\n"]
-    lines.append(
-        "Sens@≤30% and Alert@≥90% use the lenient routing rule; \"strict min escal.\" is the plan's strict rule. "
-        "See the header of scripts/score.py for what each measure means and why the lenient rule is used. "
-        "No condition is ranked or chosen here.\n"
-    )
+    lines = ["# Validation scores\n"]
     lines.append("## By condition: mean ± SD [min–max] over seeds\n")
-    lines.append("| condition | seeds | AUC | Sens@≤30% | Alert@≥90% | IoU benign | IoU malignant | strict min escal. | mAP50:95 | train min |")
+    lines.append(
+        "| condition | seeds | AUC | Sens@≤30% | Alert@≥90% | IoU benign | IoU malignant | strict min escal. | mAP50:95 | train min |"
+    )
     lines.append("|---|---:|---|---|---|---:|---:|---:|---|---:|")
     for condition, s in summary.items():
         reach = s.get("alert_at_90")
         n_runs = sum(1 for r in runs if r.condition == condition)
         alert = (
-            f"unreachable in all {n_runs}" if reach is None
+            f"unreachable in all {n_runs}"
+            if reach is None
             else f"{_spread(reach, percent=True)} ({int(reach['n'])} of {n_runs} reach it)"
         )
         lines.append(
@@ -233,12 +211,18 @@ def render(
         )
     if reference in summary:
         base = summary[reference]
-        lines.append(f"\n## Difference from {reference} (difference of the means; shown beside {reference}'s own seed range)\n")
-        lines.append(f"| condition | AUC | Sens@≤30% (points) | mAP50:95 | train min ×{reference} |")
+        lines.append(
+            f"\n## Difference from {reference}\n"
+        )
+        lines.append(
+            f"| condition | AUC | Sens@≤30% (points) | mAP50:95 | train min ×{reference} |"
+        )
         lines.append("|---|---|---|---|---|")
         base_auc = base["auc"]
-        lines.append(f"| {reference} (range over its seeds) | {base_auc['min']:.3f}–{base_auc['max']:.3f} | "
-                     f"{_pct(base['s30']['min'])}–{_pct(base['s30']['max'])} | {base['map50_95']['min']:.3f}–{base['map50_95']['max']:.3f} | 1.0 |")
+        lines.append(
+            f"| {reference} (range over its seeds) | {base_auc['min']:.3f}–{base_auc['max']:.3f} | "
+            f"{_pct(base['s30']['min'])}–{_pct(base['s30']['max'])} | {base['map50_95']['min']:.3f}–{base['map50_95']['max']:.3f} | 1.0 |"
+        )
         for condition, s in summary.items():
             if condition == reference:
                 continue
@@ -247,10 +231,14 @@ def render(
                 f"| {s['map50_95']['mean'] - base['map50_95']['mean']:+.3f} | {s['train_minutes']['mean'] / base['train_minutes']['mean']:.1f} |"
             )
     lines.append("\n## Every run\n")
-    lines.append("| run | AUC | Sens@≤30% | Alert@≥90% | IoU benign | IoU malignant | strict min escal. | mAP50:95 | train min |")
+    lines.append(
+        "| run | AUC | Sens@≤30% | Alert@≥90% | IoU benign | IoU malignant | strict min escal. | mAP50:95 | train min |"
+    )
     lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for condition in summary:
-        for r in sorted((r for r in runs if r.condition == condition), key=lambda r: r.seed):
+        for r in sorted(
+            (r for r in runs if r.condition == condition), key=lambda r: r.seed
+        ):
             alert = "unreachable" if r.alert_at_90 is None else _pct(r.alert_at_90)
             iou_b = "n/a" if r.iou_benign is None else f"{r.iou_benign:.3f}"
             iou_m = "n/a" if r.iou_malignant is None else f"{r.iou_malignant:.3f}"
@@ -258,8 +246,6 @@ def render(
                 f"| {r.condition}-s{r.seed} | {r.auc:.3f} | {_pct(r.s30)} | {alert} | {iou_b} | {iou_m} "
                 f"| {_pct(r.strict_min_escalation)} | {r.map50_95:.3f} | {r.train_minutes:.1f} |"
             )
-    if missing:
-        lines.append(f"\nRequested but not trained: {', '.join(missing)}")
     return "\n".join(lines) + "\n"
 
 
@@ -270,7 +256,14 @@ def write_results_csv(runs: Sequence[RunScores], path: Path) -> None:
         writer.writerow(["condition", "measure", "n", "mean", "sd", "min", "max"])
         for condition, measures in by_condition(runs).items():
             for measure, v in measures.items():
-                writer.writerow([condition, measure, v["n"], *(f"{v[k]:.4f}" for k in ("mean", "sd", "min", "max"))])
+                writer.writerow(
+                    [
+                        condition,
+                        measure,
+                        v["n"],
+                        *(f"{v[k]:.4f}" for k in ("mean", "sd", "min", "max")),
+                    ]
+                )
 
 
 def self_check() -> None:
@@ -278,18 +271,31 @@ def self_check() -> None:
     box = NormalizedBox(0.5, 0.5, 0.4, 0.4)
     truths = [Detection(f"M{i}", box, 1, 1.0) for i in range(5)]
     truths += [Detection(f"B{i}", box, 0, 1.0) for i in range(5)]
-    preds = [Detection(f"M{i}", box, 1, 0.8) for i in range(5)]  # malignant images score 0.8
+    preds = [
+        Detection(f"M{i}", box, 1, 0.8) for i in range(5)
+    ]  # malignant images score 0.8
     for i in range(5):
-        preds += [Detection(f"B{i}", box, 0, 0.9), Detection(f"B{i}", box, 1, 0.1)]  # benign score 0.1
+        preds += [
+            Detection(f"B{i}", box, 0, 0.9),
+            Detection(f"B{i}", box, 1, 0.1),
+        ]  # benign score 0.1
     scores = prediction_scores(preds, truths)
-    assert scores["auc"] == 1.0 and scores["s30"] == 1.0 and scores["alert_at_90"] == 0.0
-    assert scores["strict_min_escalation"] == 1.0  # two boxes per benign image, so strict never clears
+    assert (
+        scores["auc"] == 1.0 and scores["s30"] == 1.0 and scores["alert_at_90"] == 0.0
+    )
+    assert (
+        scores["strict_min_escalation"] == 1.0
+    )  # two boxes per benign image, so strict never clears
     blind = [Detection(f"M{i}", box, 1, 0.5) for i in range(5)]
     for i in range(5):
         blind += [Detection(f"B{i}", box, 0, 0.9), Detection(f"B{i}", box, 1, 0.5)]
     assert prediction_scores(blind, truths)["auc"] == 0.5
     summary = summarise([0.7, 0.8, 0.9])
-    assert abs(summary["mean"] - 0.8) < 1e-9 and summary["min"] == 0.7 and summary["max"] == 0.9
+    assert (
+        abs(summary["mean"] - 0.8) < 1e-9
+        and summary["min"] == 0.7
+        and summary["max"] == 0.9
+    )
     print("self-check passed")
 
 
@@ -297,22 +303,63 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--runs-dir", type=Path, default=Path("runs"))
     parser.add_argument("--data", type=Path, default=Path("artifacts/isic2018/yolo"))
-    parser.add_argument("--cache-dir", type=Path, default=Path("artifacts/detection-cache/val"))
-    parser.add_argument("--conditions", nargs="+", help="default: every condition found in runs/")
-    parser.add_argument("--seeds", type=int, nargs="+", help="default: every seed found for each condition")
-    parser.add_argument("--reference", default="A0", help="condition the difference tables compare against")
+    parser.add_argument(
+        "--cache-dir", type=Path, default=Path("artifacts/detection-cache/val")
+    )
+    parser.add_argument(
+        "--conditions", nargs="+", help="default: every condition found in runs/"
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="default: every seed found for each condition",
+    )
+    parser.add_argument(
+        "--reference",
+        default="A0",
+        help="condition the difference tables compare against",
+    )
     parser.add_argument("--baseline", default="B0", help="trade-off baseline condition")
-    parser.add_argument("--candidate", default="A0", help="trade-off candidate condition")
-    parser.add_argument("--primary-seed", type=int, help="seed the trade-off is read from (default: the first seed run)")
-    parser.add_argument("--tau-m", type=float, help="malignant alert threshold of a point to quantify (default: none)")
-    parser.add_argument("--tau-c", type=float, help="optional clear guard for that point (default: none)")
-    parser.add_argument("--manifest", type=Path, default=Path("artifacts/isic2018/split_manifest.csv"))
-    parser.add_argument("--assets", type=Path, default=Path("assets"), help="where scores.md goes (committed; figures come from scripts/visualise/)")
-    parser.add_argument("--tables-dir", type=Path, default=Path("artifacts"), help="where the plot-input CSVs go (tradeoff.csv, results-by-condition.csv)")
+    parser.add_argument(
+        "--candidate", default="A0", help="trade-off candidate condition"
+    )
+    parser.add_argument(
+        "--primary-seed",
+        type=int,
+        help="seed the trade-off is read from (default: the first seed run)",
+    )
+    parser.add_argument(
+        "--tau-m",
+        type=float,
+        help="malignant alert threshold of a point to quantify (default: none)",
+    )
+    parser.add_argument(
+        "--tau-c",
+        type=float,
+        help="optional clear guard for that point (default: none)",
+    )
+    parser.add_argument(
+        "--manifest", type=Path, default=Path("artifacts/isic2018/split_manifest.csv")
+    )
+    parser.add_argument(
+        "--assets",
+        type=Path,
+        default=Path("assets"),
+        help="where scores.md goes (committed; figures come from scripts/visualise/)",
+    )
+    parser.add_argument(
+        "--tables-dir",
+        type=Path,
+        default=Path("artifacts"),
+        help="where the plot-input CSVs go (tradeoff.csv, results-by-condition.csv)",
+    )
     parser.add_argument("--repeats", type=int, default=2000, help="bootstrap resamples")
     parser.add_argument("--device", help="Ultralytics device, e.g. cpu, mps or 0")
     parser.add_argument("--output", type=Path, default=Path("artifacts/scores.json"))
-    parser.add_argument("--self-check", action="store_true", help="test the scoring and exit")
+    parser.add_argument(
+        "--self-check", action="store_true", help="test the scoring and exit"
+    )
     args = parser.parse_args(argv)
 
     if args.self_check:
@@ -324,43 +371,69 @@ def main(argv: Sequence[str] | None = None) -> int:
     targets = read_targets(args.data / "labels" / "val")
     images = sorted((args.data / "images" / "val").glob("*.jpg"))
     malignant = sum(t.class_id == 1 for t in targets)
-    validation = f"Validation split: {len(targets)} images, {malignant} malignant and {len(targets) - malignant} benign."
 
     runs: list[RunScores] = []
     arrays: dict[str, RunArrays] = {}
     is_malignant = np.array([t.class_id == 1 for t in targets])
     missing: list[str] = []
     for condition in conditions:
-        for seed in (args.seeds if args.seeds else sorted(found.get(condition, []))):
+        for seed in args.seeds if args.seeds else sorted(found.get(condition, [])):
             name = f"{condition}-s{seed}"
             checkpoint = args.runs_dir / name / "weights" / "best.pt"
             if not checkpoint.is_file():
                 missing.append(name)
                 continue
-            predictions = cached_predictions(checkpoint, images, args.cache_dir, args.device)
+            predictions = cached_predictions(
+                checkpoint, images, args.cache_dir, args.device
+            )
             best_map, minutes = training_cost(args.runs_dir / name)
             scores = prediction_scores(predictions, targets)
             arrays[name] = arrays_for(name, predictions, targets)
             worst = max(
-                check_against_policy(arrays[name], predictions, targets, is_malignant, guard)
+                check_against_policy(
+                    arrays[name], predictions, targets, is_malignant, guard
+                )
                 for guard in (None, 0.1)
             )
             if worst > 1e-9:
-                raise AssertionError(f"{name}: the fast sweep disagrees with the policy code by {worst:.1e}")
-            if abs(s30(sweep(arrays[name], is_malignant, np.arange(len(is_malignant)))) - (scores["s30"] or 0.0)) > 1e-9:
-                raise AssertionError(f"{name}: Sens@<=30% differs between the sweep and the policy search")
-            runs.append(RunScores(condition, seed, map50_95=best_map, train_minutes=minutes, **scores))  # type: ignore[arg-type]
+                raise AssertionError(
+                    f"{name}: the fast sweep disagrees with the policy code by {worst:.1e}"
+                )
+            if (
+                abs(
+                    s30(sweep(arrays[name], is_malignant, np.arange(len(is_malignant))))
+                    - (scores["s30"] or 0.0)
+                )
+                > 1e-9
+            ):
+                raise AssertionError(
+                    f"{name}: Sens@<=30% differs between the sweep and the policy search"
+                )
+            runs.append(
+                RunScores(
+                    condition, seed, map50_95=best_map, train_minutes=minutes, **scores
+                )
+            )  # type: ignore[arg-type]
             print(f"scored {name}", flush=True)
     if not runs:
         print("No finished runs found.")
         return 1
 
-    report = render(runs, args.reference, validation, missing)
-    primary = args.primary_seed if args.primary_seed is not None else min(r.seed for r in runs)
+    if missing:
+        print(f"Requested but not trained: {', '.join(missing)}")
+    report = render(runs, args.reference)
+    primary = (
+        args.primary_seed
+        if args.primary_seed is not None
+        else min(r.seed for r in runs)
+    )
     trade_off_extra: dict[str, object] = {}
     print("bootstrapping ...", flush=True)
     groups = patient_groups(args.manifest, [t.image_id for t in targets])
-    seeds_of = {c: sorted(r.seed for r in runs if r.condition == c) for c in ordered(sorted({r.condition for r in runs}))}
+    seeds_of = {
+        c: sorted(r.seed for r in runs if r.condition == c)
+        for c in ordered(sorted({r.condition for r in runs}))
+    }
     extra, trade_off_extra = analysis_report(
         arrays, list(seeds_of), seeds_of, is_malignant, groups, args.reference, args.baseline, args.candidate,
         primary, args.tau_m, args.tau_c, args.repeats,
@@ -368,7 +441,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     report += "\n" + extra
     args.assets.mkdir(parents=True, exist_ok=True)
     args.tables_dir.mkdir(parents=True, exist_ok=True)
-    write_tradeoff_csv(arrays, seeds_of, is_malignant, args.baseline, args.candidate, args.tables_dir / "tradeoff.csv")
+    write_tradeoff_csv(
+        arrays,
+        seeds_of,
+        is_malignant,
+        args.baseline,
+        args.candidate,
+        args.tables_dir / "tradeoff.csv",
+    )
     write_results_csv(runs, args.tables_dir / "results-by-condition.csv")
     (args.assets / "scores.md").write_text(report)
     print("\n" + report)
@@ -387,7 +467,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
     args.output.with_suffix(".md").write_text(report)
-    print(f"written to {args.output}, {args.output.with_suffix('.md')}, {args.assets}/scores.md and {args.tables_dir}/*.csv")
+    print(
+        f"written to {args.output}, {args.output.with_suffix('.md')}, {args.assets}/scores.md and {args.tables_dir}/*.csv"
+    )
     return 0
 
 

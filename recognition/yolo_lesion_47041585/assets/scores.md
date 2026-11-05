@@ -1,9 +1,5 @@
 # Validation scores
 
-Validation split: 189 images, 36 malignant and 153 benign.
-
-Sens@≤30% and Alert@≥90% use the lenient routing rule; "strict min escal." is the plan's strict rule. See the header of scripts/score.py for what each measure means and why the lenient rule is used. No condition is ranked or chosen here.
-
 ## By condition: mean ± SD [min–max] over seeds
 
 | condition | seeds | AUC | Sens@≤30% | Alert@≥90% | IoU benign | IoU malignant | strict min escal. | mAP50:95 | train min |
@@ -20,7 +16,7 @@ Sens@≤30% and Alert@≥90% use the lenient routing rule; "strict min escal." i
 | A0-ep200 | 3 | 0.706 ± 0.011 [0.697–0.719] | 59% ± 6% [53%–64%] | 89% ± 10% [83%–100%] (3 of 3 reach it) | 0.866 | 0.884 | 100% | 0.558 ± 0.005 [0.554–0.563] | 19 |
 | A0-rot | 3 | 0.741 ± 0.022 [0.717–0.759] | 56% ± 4% [53%–61%] | 78% ± 7% [71%–86%] (3 of 3 reach it) | 0.842 | 0.860 | 100% | 0.481 ± 0.011 [0.469–0.492] | 10 |
 
-## Difference from A0 (difference of the means; shown beside A0's own seed range)
+## Difference from A0
 
 | condition | AUC | Sens@≤30% (points) | mAP50:95 | train min ×A0 |
 |---|---|---|---|---|
@@ -76,8 +72,6 @@ Sens@≤30% and Alert@≥90% use the lenient routing rule; "strict min escal." i
 
 ## Patient-level 95% intervals (2000 of 2000 resamples valid)
 
-Whole patients are resampled, so the validation set itself is the noise measured here. Each interval is for the mean over the condition's seeds.
-
 | condition | AUC | AUC minus A0 | Sens@≤30% | Sens@≤30% minus A0 (points) |
 |---|---|---|---|---|
 | B0 | 0.709 [0.585, 0.811] | -0.027 [-0.089, +0.046] | 61% [40%, 77%] | -1.7 [-17, +16] |
@@ -93,8 +87,6 @@ Whole patients are resampled, so the validation set itself is the noise measured
 | A0-rot | 0.733 [0.563, 0.870] | -0.004 [-0.085, +0.053] | 56% [26%, 81%] | -6.0 [-21, +5] |
 
 ## Trade-off: B0 and A0 at seed 47041585
-
-Best sensitivity at each biopsy-burden limit (benign images routed urgent). Monitor and cleared are what the rule does with the rest. Burden counts urgent only; Sens@≤30% in the table above counts urgent plus monitor, the plan's definition.
 
 **B0**
 
@@ -116,11 +108,7 @@ Best sensitivity at each biopsy-burden limit (benign images routed urgent). Moni
 | ≤40% | 0.11 | 72% | 40% | 0% | 0% | 28% |
 | ≤50% | 0.07 | 81% | 50% | 0% | 0% | 19% |
 
-A0 reaches 90% sensitivity at a burden of 90%.
-
 ## Chosen operating point: A0 seed 47041585, tau_m 0.07, no guard
-
-B0 is read at the same biopsy burden: its tau_m is 0.01, the setting with its best sensitivity at or below A0's burden. Intervals are patient-level 95%; the last column is A0 minus B0, paired over the same resampled patients.
 
 | quantity | A0 | B0 (same burden) | A0 minus B0 |
 |---|---:|---:|---:|
@@ -131,14 +119,7 @@ B0 is read at the same biopsy burden: its tau_m is 0.01, the setting with its be
 | malignant routed monitor | 0.0% [0%, 0%] | 0.0% [0%, 0%] | +0.0 points [+0, +0] |
 | malignant routed clear (safety cost) | 19.4% [4%, 42%] | 25.0% [9%, 46%] | -5.6 points [-19, +9] |
 
-Per 1,000 images at the validation prevalence (19.0% malignant, so 190 malignant and 810 benign):
-- 153 of 190 malignant lesions are caught; 37 are not.
-- 402 benign lesions are sent to urgent review, so 2.6 benign per malignant caught.
-- 37 malignant lesions are cleared with no follow-up.
-
 ## Clear guard at tau_m 0.07 (A0, seed 47041585)
-
-Sensitivity and burden are the same for every row; the guard only moves images between clear and monitor. A guard at or above tau_m changes nothing.
 
 | tau_c | benign cleared | benign monitor | malignant monitor | malignant cleared |
 |---|---:|---:|---:|---:|

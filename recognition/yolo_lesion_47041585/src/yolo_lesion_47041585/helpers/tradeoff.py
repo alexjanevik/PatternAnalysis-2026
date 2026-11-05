@@ -118,8 +118,6 @@ def analysis_report(
     boot = bootstrap_by_patient(groups, statistic, repeats=repeats)
     lines = [
         f"## Patient-level 95% intervals ({boot.n_valid} of {boot.n_repeats} resamples valid)\n",
-        "Whole patients are resampled, so the validation set itself is the noise measured here. "
-        "Each interval is for the mean over the condition's seeds.\n",
         f"| condition | AUC | AUC minus {reference} | Sens@≤30% | Sens@≤30% minus {reference} (points) |",
         "|---|---|---|---|---|",
     ]
@@ -148,23 +146,13 @@ def analysis_report(
         lines.append(f"| {condition} | " + " | ".join(cells) + " |")
 
     base, cand = sweep(arrays[base_name], is_malignant, everyone), sweep(arrays[cand_name], is_malignant, everyone)
-    lines += [
-        f"\n## Trade-off: {baseline} and {candidate} at seed {primary_seed}\n",
-        "Best sensitivity at each biopsy-burden limit (benign images routed urgent). "
-        "Monitor and cleared are what the rule does with the rest. Burden counts urgent only; "
-        "Sens@≤30% in the table above counts urgent plus monitor, the plan's definition.\n",
-    ]
+    lines.append(f"\n## Trade-off: {baseline} and {candidate} at seed {primary_seed}\n")
     for name, result in ((baseline, base), (candidate, cand)):
         lines += [f"**{name}**\n", POINT_HEADER]
         for limit in BURDEN_LIMITS:
             i = best_at_burden(result, limit)
             lines.append(f"| ≤{limit:.0%} " + _point_row(result, i))
         lines.append("")
-    reaches = np.flatnonzero(cand.sensitivity >= 0.90 - 1e-9)
-    lines.append(
-        f"{candidate} reaches 90% sensitivity at a burden of {cand.benign_urgent[reaches].min():.0%}.\n" if reaches.size
-        else f"{candidate} never reaches 90% sensitivity at any threshold (best {cand.sensitivity.max():.0%}).\n"
-    )
 
     detail: dict[str, object] = {}
     guard_i = point_index if point_index is not None else best_at_burden(cand, MAX_BENIGN_ESCALATION)
@@ -174,12 +162,8 @@ def analysis_report(
         n_mal = round(1000 * prevalence)
         n_ben = 1000 - n_mal
         guard_text = "no guard" if tau_c is None else f"clear guard {tau_c}"
-        inert = tau_c is not None and tau_c >= THRESHOLDS[point_index]
         lines += [
             f"## Chosen operating point: {candidate} seed {primary_seed}, tau_m {THRESHOLDS[point_index]:.2f}, {guard_text}\n",
-            f"{baseline} is read at the same biopsy burden: its tau_m is {THRESHOLDS[base_index]:.2f}, the setting with "
-            f"its best sensitivity at or below {candidate}'s burden. Intervals are patient-level 95%; "
-            f"the last column is {candidate} minus {baseline}, paired over the same resampled patients.\n",
             f"| quantity | {candidate} | {baseline} (same burden) | {candidate} minus {baseline} |", "|---|---:|---:|---:|",
         ]
         for field, label in POINT_ROWS:
@@ -194,23 +178,12 @@ def analysis_report(
         detected = float(at.sensitivity[point_index])
         urgent = float(at.benign_urgent[point_index])
         cleared_m = float(at.malignant_clear[point_index])
-        lines += [
-            f"\nPer 1,000 images at the validation prevalence ({prevalence:.1%} malignant, so {n_mal} malignant and {n_ben} benign):",
-            f"- {detected * n_mal:.0f} of {n_mal} malignant lesions are caught; {n_mal - detected * n_mal:.0f} are not.",
-            f"- {urgent * n_ben:.0f} benign lesions are sent to urgent review, so {urgent * n_ben / max(detected * n_mal, 1e-9):.1f} benign per malignant caught.",
-            f"- {cleared_m * n_mal:.0f} malignant lesions are cleared with no follow-up.\n",
-        ]
-        if inert:
-            lines.append(f"Note: a clear guard at or above tau_m ({THRESHOLDS[point_index]:.2f}) changes nothing, because "
-                         "an image that high is already routed urgent. Use a guard below tau_m.\n")  # fmt: skip
         detail = {"tau_m": float(THRESHOLDS[point_index]), "tau_c": tau_c, "sensitivity": detected,
                   "baseline_tau_m": float(THRESHOLDS[base_index]), "baseline_sensitivity": float(at_base.sensitivity[base_index]),
                   "benign_urgent": urgent, "malignant_clear": cleared_m, "per_1000": {"malignant": n_mal, "benign": n_ben}}  # fmt: skip
 
     lines += [
         f"## Clear guard at tau_m {THRESHOLDS[guard_i]:.2f} ({candidate}, seed {primary_seed})\n",
-        "Sensitivity and burden are the same for every row; the guard only moves images between clear and monitor. "
-        "A guard at or above tau_m changes nothing.\n",
         "| tau_c | benign cleared | benign monitor | malignant monitor | malignant cleared |", "|---|---:|---:|---:|---:|",
     ]
     for guard in GUARDS:
