@@ -28,7 +28,7 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 | ----: | :-------------------------------------------------------------------------------------|
 | 1     | [Project Structure](#project-structure)                                               |
 | 2     | [Initial Feasibility Review](#initial-feasibility-review)                             |
-| 3     | [Data Pre-processing](#data-pre-processing)                                           |
+| 3     | [Data preprocessing](#data-pre-processing)                                           |
 | 4     | [Benchmarks and Results](#benchmarks-and-results)                                     |
 | 4.1   |   [Baseline model](#baseline-model)                                                   |
 | 4.2   |   [Config Tuning and Candidate Model](#config-tuning-and-candidate-model)            |
@@ -107,6 +107,10 @@ The preliminary audit identified 3,594 image-mask pairs. Excluding the 22 record
 The retained records come from the original training and test sets - 390 and 869 images respectively. These sets will be merged and re-split in a 70/15/15 training-validation-test split prior to training. It is imperative to keep all images from each patient together and check for any overlapping lesion IDs. Records with missing lesion IDs will be retained where patient IDs are available, as overlapping lesion IDs indicate a different photo of the same patient's lesion. Metadata pre-sanitising and filtering, mask pairing and bounding-box extraction have also been completed. An example with candidate bounding boxes is shown below.
 
 ![Example of a candidate bounding box derived from a segmentation mask](assets/audit-box-overlays.jpg)
+<div align="center">
+
+**Figure 1**: Examples of derived bounding boxes from segmentation masks.
+</div>
 
 ### Risks, budget and fallback
 
@@ -122,11 +126,42 @@ Experiments will be run using a single NVIDIA A100 GPU via the COMP3710 Slurm pa
 
 The smoke test will measure epoch time and peak VRAM usage to set an epoch limit for the controlled comparisons. If the projected runtime exceeds this budget, the number of experiments will be reduced. YOLO11s or YOLO11m will only be tested if there are resources remaining.
 
-## Data Pre-processing
+## Data Preprocessing
+
+Data preprocessing is implemented in the `dataset` module and then run via the `audit` module. Raw ISIC2018 data is stored and compared against the provided `dataset/metadata_raw.csv` file. The `audit` module performs the following steps:
+
+1. **Filter metadata and pair with images and masks**: Records are split into by row into image-mask pairs. metadata rows that don't map to both a matching image and mask are removed. records with indeterminate diagnoses or records that don't have a valid patient ID are also removed. Removed records are logged with their respective exclusion reason(s).
+
+2. **Decode pairs and derive their bounding boxes**: All included images and masks are audited to ensure they are valid. Invalid records include those with:
+
+    - Invalid image or mask files.
+    - Mask files that are not 8-bit greyscale 2D images.
+    - Mismatched dimensions between the image and mask.
+    - Masks that are completely empty.
+
+   Once validated, bounding boxes are derived from the segmentation masks in the format [$x_c$, $y_c$, $w$, $h$] with values normalised by image width and height. This is done by finding all non-zero pixels in the mask and calculating the minimum and maximum $x$ and $y$ coordinates.
+
+3. **Build independence groups**: Records that share the same patient ID must reside in the same split to maintain patient-independence across the splits. Records are sorted by ISIC ID and iterated over, placing records with the same patient ID into a group labelled after the first recorded ISIC ID with that patient ID.
+
+4. **Splitting and validation**: Groups are shuffled with a given seed and stable-sorted by size with the largest groups first, with the seed used to break ties between evenly sized groups. Given a set split ratio, class-share targets are generated to try and keep the share of benign and malignant records relatively balanced between splits. Groups are added to splits where the deviation from split's class-share would increase the least if it were added.
+
+   Afterwards, splits are validated to ensure that every split contains both classes and per-record assignments are written to `artifacts/isic2018/split_manifest.csv`.
+
+5. **YOLO export**: Lastly, per-record labels and symlinks to the original images are created in `artifacts/isic2018/yolo`. Each label contains a class (diagnosis) and the bounding box coordinates derived in **(2)**. `artifacts/isic2018/yolo/dataset.yaml` maps the relative paths to each split's images and contains a key for the class labels.
+
+Running audit with seed `47041585` and a 70/15/15 split ratio leaves yields the expected 1,259 records from the [feasibility review](#initial-feasibility-review) with an 881/189/189 split. Each split contains about 19% malignant records with no patient residing in more than one split. 25.3% of malignant records have boxes that cover over 80% of the image, with 9.1% of benign records doing the same. Per run results can be found in `artifacts/isic2018` and lesion-box area distributions are returned during the generation of the box area graph.
+
+![Lesion box area as a share of the image](assets/box-areas.png)
+<div align="center">
+
+**Figure 2**: How much of the image is covered by the lesion bounding box. Dotted lines indicate the median box area for the respective class label.
+</div>
 
 ## Benchmarks and Results
 
 ### Baseline Model
+
+The baseline model is a COCO-pretrained YOLO11n detector trained on the training split with stock Ultralytics hyperparameters. It produces no augentation and uses a stock shuffle. With this configuration,
 
 ### Config Tuning and Candidate Model
 
