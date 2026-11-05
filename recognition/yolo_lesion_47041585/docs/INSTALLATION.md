@@ -26,8 +26,13 @@ Training was performed on the UQ Rangpur cluster (Alma Linux 8.10) using an NVID
 | pillow        | 13.0.0    | Image reading and overlays                                    |
 | pyyaml        | 6.0.3     | Configuration files                                           |
 | rich          | 15.0.0    | Console output formatting                                     |
+| matplotlib    | 3.11.2    | Report figures (`scripts/visualise/`)                         |
+| opencv-python | 5.0.0.93  | Image decoding in `scripts/profile_latency.py`                |
+| pyright       | 1.1.414+  | Optional: type checking (`uv sync` installs it as a dev dependency) |
 
-Dependencies for these packages are all automatically installed when using a virtual environment either in `pip` with `requirements.txt` or `uv` (or equivalent) with `pyproject.toml`. The `uv.lock` file is included to ensure that the same versions of dependencies are installed across different environments.
+Dependencies for these packages are all automatically installed when using a virtual environment either in `pip` with `requirements.txt` or `uv` (or equivalent) with `pyproject.toml`. The `uv.lock` file is included to ensure that the same versions of dependencies are installed across different environments. Other packages (such as `torchvision`) are installed as dependencies of the ones above.
+
+The pretrained detector weights (`yolo11n.pt`, and `yolo11m.pt` for the larger condition) are downloaded by Ultralytics into `weights/` the first time they are needed, so the first training run needs internet access.
 
 ## Building the project
 
@@ -57,12 +62,18 @@ uv run -m yolo_lesion_47041585.audit --help
 
 ### Installation with `pip` and `venv`
 
-Alongside the `pyproject.toml` and `uv.lock` files, a `requirements.txt` file is included to allow installation of the same dependencies using `pip` and `venv`.
+Alongside the `pyproject.toml` and `uv.lock` files, a `requirements.txt` file is included to allow installation of the same pinned dependencies using `pip` and `venv`. It also installs the project itself in editable mode (`-e .`), which is what makes `python3 -m yolo_lesion_47041585.{module}` work.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+`requirements.txt` is generated from `uv.lock`. If you change the dependencies, regenerate it with:
+
+```bash
+uv export --frozen --no-hashes --no-dev -o requirements.txt
 ```
 
 If you prefer this method, note that all commands in [Usage](./USAGE.md) will need to be run as:
@@ -72,6 +83,19 @@ python3 -m yolo_lesion_47041585.{module}
 # e.g.
 python3 -m yolo_lesion_47041585.audit --help
 ```
+
+### Check the installation
+
+With either method, check that the project and its dependencies import correctly:
+
+```bash
+uv run python -c "import yolo_lesion_47041585, ultralytics, torch; print(torch.__version__, torch.cuda.is_available())"
+
+# or with pip and venv
+python3 -c "import yolo_lesion_47041585, ultralytics, torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+This prints the PyTorch version and whether a CUDA GPU is visible (`False` is expected on a laptop without an NVIDIA GPU). To also run the type checker, use `uv run pyright`.
 
 ## Retrieve the data
 

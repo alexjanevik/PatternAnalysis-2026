@@ -56,6 +56,7 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 yolo_lesion_47041585/
 ├── pyproject.toml
 ├── README.md
+├── requirements.txt
 ├── uv.lock
 ├── assets/
 ├── configs

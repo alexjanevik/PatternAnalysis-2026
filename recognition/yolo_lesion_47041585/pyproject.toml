@@ -1,12 +1,14 @@
 [project]
 name = "yolo_lesion_47041585"
 version = "0.1.0"
-description = "Add your description here"
+description = "YOLO11 lesion detection and triage on the ISIC2018 challenge dataset (COMP3710 Task 3)"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Alex Janevik", email = "ajanevik@gmail.com" }]
 dependencies = [
+  "matplotlib>=3.11.2",
   "numpy>=2.5.4",
+  "opencv-python>=5.0.0.93",
   "pillow>=13.0.0",
   "pyyaml>=6.0.3",
   "rich>=15.0.0",
@@ -21,7 +23,6 @@ train = "yolo_lesion_47041585.train:main"
 [dependency-groups]
 dev = [
   "pyright>=1.1.414",
-  "pytest>=9.1.1",
 ]
 
 [build-system]
@@ -30,7 +31,7 @@ build-backend = "uv_build"
 
 [tool.pyright]
 typeCheckingMode = "strict"
-include = ["src", "scripts", "tests"]
+include = ["src", "scripts"]
 venvPath = "."
 venv = ".venv"
 
