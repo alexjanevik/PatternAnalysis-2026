@@ -6,6 +6,7 @@ Only box overlays are needed for the pilot run; the rest are placeholders.
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import matplotlib as mpl
 from PIL import Image, ImageDraw
 
 if TYPE_CHECKING:
@@ -13,6 +14,43 @@ if TYPE_CHECKING:
 
 # one colour per class ID: benign green, malignant red
 CLASS_COLOURS = ("#2ca02c", "#d62728")
+
+
+def use_report_style() -> None:
+    """Give every matplotlib figure the plain look of the audit overlays and failure panels.
+
+    White background, small sans-serif text, thin lines, left-aligned panel titles, and no frame
+    on the top and right or gridlines. Call it once before creating a figure.
+    """
+    mpl.rcParams.update(  # pyright: ignore[reportUnknownMemberType]
+        {
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
+            "font.size": 9,
+            "axes.titlesize": 10,
+            "axes.titleweight": "normal",
+            "axes.titlelocation": "left",
+            "axes.labelsize": 9,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "legend.fontsize": 8,
+            "legend.frameon": False,
+            "figure.titlesize": 10,
+            "figure.titleweight": "normal",
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.linewidth": 0.6,
+            "axes.edgecolor": "#555555",
+            "xtick.major.width": 0.6,
+            "ytick.major.width": 0.6,
+            "axes.grid": False,
+            "lines.linewidth": 1.4,
+            "patch.linewidth": 0.6,
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "savefig.facecolor": "white",
+        }
+    )
 
 
 def draw_detections(

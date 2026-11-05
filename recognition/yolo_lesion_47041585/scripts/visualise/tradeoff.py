@@ -10,6 +10,8 @@ mark a chosen tau_m, and add the frozen test results from assets/test-results.js
 
     uv run python scripts/visualise/tradeoff.py
     uv run python scripts/visualise/tradeoff.py --tau-m 0.07 --test-results assets/test-results.json
+    uv run python scripts/visualise/tradeoff.py --csv artifacts/cls2/tradeoff.csv --baseline A0 \\
+        --candidate A0-cls2 --candidate-colour tab:purple --mark-limits --output assets/tradeoff-cls2.png
 """
 
 import argparse
@@ -22,6 +24,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
 
 # ---- settings -------------------------------------------------------------------------------
 BASELINE = "B0"
@@ -37,6 +41,7 @@ SHOW_TARGET_REGION = True  # shade 90% sensitivity at a burden of 30% or less
 MAX_BURDEN = 0.30
 MIN_SENSITIVITY = 0.90
 SHOW_CHANCE_LINE = True
+BURDEN_LIMITS = (0.30, 0.40, 0.50)  # the limits --mark-limits reads off, as in the score.py tables
 MARK_POINTS = True  # number the lowest burden at 90% sensitivity, the best point within 30% burden, and --tau-m
 TITLE = "Sensitivity against biopsy burden (validation)"
 X_LABEL = "Benign images routed urgent (biopsy burden)"
@@ -58,6 +63,7 @@ def read_curves(path: Path) -> dict[tuple[str, int], Curve]:
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--csv", type=Path, default=Path("artifacts/tradeoff.csv"))
     parser.add_argument("--baseline", default=BASELINE)
@@ -65,13 +71,16 @@ def main() -> None:
     parser.add_argument("--primary-seed", type=int, help="seed drawn thick (default: the smallest in the file)")
     parser.add_argument("--tau-m", type=float, help="mark this candidate threshold on the curve")
     parser.add_argument("--test-results", type=Path, help="test-results.json: add the frozen test points")
+    parser.add_argument("--baseline-colour", default=BASELINE_COLOUR)
+    parser.add_argument("--candidate-colour", default=CANDIDATE_COLOUR)
+    parser.add_argument("--mark-limits", action="store_true", help="mark both curves at each burden limit instead of the numbered points")
     parser.add_argument("--output", type=Path, default=Path("assets/tradeoff.png"))
     args = parser.parse_args()
 
     curves = read_curves(args.csv)
     seeds = sorted({seed for _, seed in curves})
     primary = args.primary_seed if args.primary_seed is not None else seeds[0]
-    colours = {args.baseline: BASELINE_COLOUR, args.candidate: CANDIDATE_COLOUR}
+    colours = {args.baseline: args.baseline_colour, args.candidate: args.candidate_colour}
 
     fig, ax = plt.subplots(figsize=FIGSIZE)
     if SHOW_TARGET_REGION:
@@ -87,7 +96,18 @@ def main() -> None:
             elif SHOW_OTHER_SEEDS:
                 ax.plot(burden, sensitivity, color=colour, linewidth=1, alpha=OTHER_SEED_ALPHA)
 
-    if MARK_POINTS:
+    if args.mark_limits:
+        for limit in BURDEN_LIMITS:
+            ax.axvline(limit, color="lightgray", linestyle=":", linewidth=1)
+        for (condition, colour), (offset, align) in zip(colours.items(), (((6, -13), "left"), ((0, 8), "center"))):
+            burden, sensitivity, _ = curves[(condition, primary)]
+            for limit in BURDEN_LIMITS:
+                within = [i for i, b in enumerate(burden) if b <= limit + 1e-9]
+                i = max(within, key=lambda i: sensitivity[i])  # the first of any tie, as in score.py
+                ax.plot(burden[i], sensitivity[i], "o", color=colour, markeredgecolor="black")
+                ax.annotate(f"{sensitivity[i]:.0%}", (burden[i], sensitivity[i]), textcoords="offset points", xytext=offset, ha=align, fontsize=8)
+
+    if MARK_POINTS and not args.mark_limits:
         burden, sensitivity, tau = curves[(args.candidate, primary)]
         marks: list[tuple[str, int]] = []
         reached = [i for i, s in enumerate(sensitivity) if s >= MIN_SENSITIVITY - 1e-9]
@@ -119,7 +139,6 @@ def main() -> None:
     ax.set_xlabel(X_LABEL)
     ax.set_ylabel(Y_LABEL)
     ax.set_title(TITLE)
-    ax.grid(True, alpha=0.3)
     ax.legend(loc="lower right", fontsize=8)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=DPI, bbox_inches="tight")

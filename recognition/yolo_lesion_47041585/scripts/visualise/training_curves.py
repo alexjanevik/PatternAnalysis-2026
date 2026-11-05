@@ -21,6 +21,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
+
 # ---- settings -------------------------------------------------------------------------------
 CONDITIONS = ("B0", "A0")
 METRIC_COLUMN = "metrics/mAP50-95(B)"
@@ -34,6 +36,7 @@ TITLE = "Validation mAP50:95 by training epoch"
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--runs-dir", type=Path, default=Path("runs"))
     parser.add_argument("--conditions", nargs="+", default=list(CONDITIONS))
@@ -59,7 +62,6 @@ def main() -> None:
     ax.set_xlabel("Epoch")
     ax.set_ylabel(Y_LABEL)
     ax.set_title(TITLE)
-    ax.grid(True, alpha=0.3)
     ax.legend()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=DPI, bbox_inches="tight")

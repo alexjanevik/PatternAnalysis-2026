@@ -24,6 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from yolo_lesion_47041585.helpers.validation import arrays_for, cached_predictions, read_targets
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
 
 # ---- settings -------------------------------------------------------------------------------
 CONDITIONS = ("B0", "A0")
@@ -40,6 +41,7 @@ DPI = 150
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--conditions", nargs="+", default=list(CONDITIONS))
     parser.add_argument("--seed", type=int, default=47041585)

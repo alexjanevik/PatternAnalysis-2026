@@ -21,6 +21,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
+
 # ---- settings -------------------------------------------------------------------------------
 CLASS_NAMES = ("Benign", "Malignant")
 CLASS_COLOURS = ("tab:green", "tab:red")
@@ -34,6 +36,7 @@ TITLE = "Lesion box area as a share of the image"
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--manifest", type=Path, default=Path("artifacts/isic2018/split_manifest.csv"))
     parser.add_argument("--split", choices=("train", "val", "test"), help="default: every retained image")
@@ -50,7 +53,7 @@ def main() -> None:
     for name, colour, values in zip(CLASS_NAMES, CLASS_COLOURS, areas):
         ax.hist(values, bins=BINS, range=(0, 1), alpha=ALPHA, color=colour, label=f"{name} ({len(values)} images)")
         if SHOW_MEDIANS and values:
-            ax.axvline(statistics.median(values), color=colour, linestyle="--", linewidth=1)
+            ax.axvline(statistics.median(values), color=colour, linestyle=":", linewidth=1)
     ax.set_xlabel("Box area as a fraction of the image")
     ax.set_ylabel("Images")
     ax.set_title(TITLE + (f" ({args.split} split)" if args.split else ""))

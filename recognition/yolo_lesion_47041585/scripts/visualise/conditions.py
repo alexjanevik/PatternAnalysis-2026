@@ -19,6 +19,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
+
 # ---- settings -------------------------------------------------------------------------------
 HIGHLIGHT = "A0"  # drawn in HIGHLIGHT_COLOUR
 HIGHLIGHT_COLOUR = "tab:blue"
@@ -38,6 +40,7 @@ TITLE = "Validation results by condition (one dot per seed, line is the mean)"
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--scores", type=Path, default=Path("artifacts/scores.json"))
     parser.add_argument("--highlight", default=HIGHLIGHT)
@@ -62,7 +65,6 @@ def main() -> None:
         ax.set_yticks(range(len(conditions)))
         ax.set_yticklabels(conditions)
         ax.invert_yaxis()
-        ax.grid(True, axis="x", alpha=0.3)
         if percent:
             ax.xaxis.set_major_formatter(lambda v, _: f"{v:.0%}")
     fig.suptitle(TITLE)

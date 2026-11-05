@@ -21,6 +21,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
+
 # ---- settings -------------------------------------------------------------------------------
 BASELINE = "B0"
 CANDIDATE = "A0"
@@ -36,6 +38,7 @@ TITLE = "How each true class is routed"
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--routes-dir", type=Path, default=Path("artifacts/routes"))
     parser.add_argument("--split", choices=("val", "test"), default="test")

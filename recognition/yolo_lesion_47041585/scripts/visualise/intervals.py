@@ -24,6 +24,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+from yolo_lesion_47041585.helpers.visualisation import use_report_style
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
@@ -61,7 +63,6 @@ def validation_plot(scores: Path) -> tuple[Figure, str]:
         ax.set_yticks(range(len(conditions)))
         ax.set_yticklabels(conditions)
         ax.invert_yaxis()
-        ax.grid(True, axis="x", alpha=0.3)
         ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
     return fig, f"Validation: each condition minus {reference}, with patient-level 95% intervals"
 
@@ -78,11 +79,11 @@ def test_plot(results: Path) -> tuple[Figure, str]:
     ax.set_yticklabels([label for _, label in TEST_METRICS])
     ax.invert_yaxis()
     ax.set_xlabel("Candidate minus baseline (percentage points)")
-    ax.grid(True, axis="x", alpha=0.3)
     return fig, f"{data['split'].capitalize()} split: candidate minus baseline at the frozen points, 95% intervals"
 
 
 def main() -> None:
+    use_report_style()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--source", choices=("validation", "test"), required=True)
     parser.add_argument("--scores", type=Path, default=Path("artifacts/scores.json"))
