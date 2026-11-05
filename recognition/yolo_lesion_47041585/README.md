@@ -1,22 +1,28 @@
-# YOLO11 for Lesion Detection and Triage on ISIC2018 Dataset
+# YOLO11 for Lesion Detection and Triage on ISIC2018 Challenge Dataset
 
-## COMP3710 - Pattern Recognition and Analysis
+<div align="center">
+
+**COMP3710 - Pattern Recognition and Analysis**
 
 | Task 3 | Lesion Detection: Dermoscopic Screening and Triage |
 | :----- | :------------------------------------------------- |
 | Author | Alex Janevik (47041585)                            |
 
-## Project Overview
+**put a training visualisation here, perhaps a gif if i can**
 
-YOLO11 is a single-stage object detection model that can simultaneously predict bounding boxes and class labels for objects in images. In this project, YOLO11 is applied to the ISIC2018 Challenge Dataset to detect and classify skin lesions as either benign or malignant. Care is taken to ensure that the model is trained and evaluated on patient-independent splits. By setting appropriate thresholds for malignant detection, the goal is to assist clinicians in triaging cases by flagging potentially malignant lesions for further review while minimizing unnecessary escalation of benign cases.
+[Installation](./docs/INSTALLATION.md) • [Usage](./docs/USAGE.md)
+
+</div>
+
+---
+
+This project trains a YOLO11 object detection model on the ISIC2018 Challenge Dataset to detect and classify skin lesions as either benign or malignant. The primary motivation is to assist clinicians in the triaging of cases by flagging potentially malignant lesions for review while minimising any unnecessary escalated of benign cases. Great care is taken to ensure the model is trained and evaluated on patient-independent splits to avoid data leakage and ensure that the model's performance is representative of real-world clinical scenarios.
 
 Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 architecture [\[4\]](#references):
 
 1. **Backbone**: Extract features from dermoscopic images at multiple resolutions to produce 3 multi-scale feature maps.
 2. **Neck**: Features across the scales are fused to provide context for lesions of different sizes.
 3. **Head**: Bounding boxes and classifications are predicted from the fused features.
-
-### put a training visualisation here, perhaps a gif if i can
 
 | \#    | Section                                                                                       |
 | ----: | :---------------------------------------------------------------------------------------------|
