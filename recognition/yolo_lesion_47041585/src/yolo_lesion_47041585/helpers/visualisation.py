@@ -4,7 +4,7 @@ Only box overlays are needed for the pilot run; the rest are placeholders.
 """
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import matplotlib as mpl
 from PIL import Image, ImageDraw

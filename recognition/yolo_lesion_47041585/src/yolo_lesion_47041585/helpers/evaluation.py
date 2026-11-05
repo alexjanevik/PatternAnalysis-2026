@@ -8,7 +8,6 @@ on this module; the remaining functions are placeholders for the final evaluatio
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 

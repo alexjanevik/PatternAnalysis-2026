@@ -17,6 +17,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 
@@ -94,9 +95,20 @@ class RunScores:
     train_minutes: float
 
 
+class PredictionScores(TypedDict):
+    """The prediction-based measures of one run, named as the `RunScores` fields they fill."""
+
+    auc: float
+    s30: float
+    alert_at_90: float | None
+    iou_benign: float | None
+    iou_malignant: float | None
+    strict_min_escalation: float
+
+
 def prediction_scores(
     predictions: Sequence[Detection], ground_truth: Sequence[Detection]
-) -> dict[str, float | None]:
+) -> PredictionScores:
     """The prediction-based measures for one run (everything except training cost)."""
     evidence = build_evidence(predictions, ground_truth)
     malignant = [e.inputs.max_malignant_conf for e in evidence if e.true_class == 1]
@@ -211,9 +223,7 @@ def render(
         )
     if reference in summary:
         base = summary[reference]
-        lines.append(
-            f"\n## Difference from {reference}\n"
-        )
+        lines.append(f"\n## Difference from {reference}\n")
         lines.append(
             f"| condition | AUC | Sens@≤30% (points) | mAP50:95 | train min ×{reference} |"
         )
@@ -413,7 +423,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 RunScores(
                     condition, seed, map50_95=best_map, train_minutes=minutes, **scores
                 )
-            )  # type: ignore[arg-type]
+            )
+
             print(f"scored {name}", flush=True)
     if not runs:
         print("No finished runs found.")
