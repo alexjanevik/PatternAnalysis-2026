@@ -28,7 +28,6 @@ Training was performed on the UQ Rangpur cluster (Alma Linux 8.10) using an NVID
 | rich          | 15.0.0    | Console output formatting                                     |
 | matplotlib    | 3.11.2    | Report figures (`scripts/visualise/`)                         |
 | opencv-python | 5.0.0.93  | Image decoding in `scripts/profile_latency.py`                |
-| pyright       | 1.1.414+  | Optional: type checking (`uv sync` installs it as a dev dependency) |
 
 Dependencies for these packages are all automatically installed when using a virtual environment either in `pip` with `requirements.txt` or `uv` (or equivalent) with `pyproject.toml`. The `uv.lock` file is included to ensure that the same versions of dependencies are installed across different environments. Other packages (such as `torchvision`) are installed as dependencies of the ones above.
 
@@ -95,7 +94,7 @@ uv run python -c "import yolo_lesion_47041585, ultralytics, torch; print(torch._
 python3 -c "import yolo_lesion_47041585, ultralytics, torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-This prints the PyTorch version and whether a CUDA GPU is visible (`False` is expected on a laptop without an NVIDIA GPU). To also run the type checker, use `uv run pyright`.
+This prints the PyTorch version and whether a CUDA GPU is visible (`False` is expected on a laptop without an NVIDIA GPU).
 
 ## Retrieve the data
 
