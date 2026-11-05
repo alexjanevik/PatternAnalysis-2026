@@ -53,17 +53,7 @@ The available flags are:
 | `--pilot` | A 3-epoch smoke test. Is labelled `...-pilot/` in `runs/` |
 | `--device D` | The Ultralytics device to use in training (`0`, `cpu`, `mps`). Default = `0` (first GPU) |
 
-A list of tested configs have been supplied under `configs/`. The changes they make to the model are summarised:
-
-| Condition | Augmentation | Training images drawn | Malignant share of each epoch | Changes |
-|:----------|:-------------|:----------------------|:------------------------------|:----------------|
-| `b0` | None | Stock Ultralytics shuffle | Natural (about 19%) | N/A |
-| `a0` | Modest | Uniformly with replacement | Natural | `b0`: Augmentation and sampling |
-| `o35` | Modest | Weighted with replacement | 35% | `a0`: Malignant share only |
-| `o50` | Modest | Weighted with replacement | 50% | `a0`: Malignant share only |
-| `a0_wd` | Modest | Uniformly with replacement | Natural | `a0`: Weight decay = `0.05` (default = `0.0005`) |
-| `a0_yolo11m` | Modest | Uniformly with replacement | Natural | `a0`: YOLO11m weights instead of YOLO11n |
-| `a0_yolo11m_wd` | Modest | Uniformly with replacement | Natural | `a0`: YOLO11m, weight decay = `0.05` |
+A list of tested configs have been supplied under `configs/`, with their differences described in the [readme](../README.md#benchmarks-and-results).
 
 > [!NOTE]
 > `b0` differs from `a0` in both augmentation and sampling. `b0` vs `a0` measures these two together. Single-change comparisons are made against `a0` and are thus more informative.

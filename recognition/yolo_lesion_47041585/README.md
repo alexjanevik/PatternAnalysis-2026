@@ -159,9 +159,21 @@ Running audit with seed `47041585` and a 70/15/15 split ratio leaves yields the 
 
 ## Benchmarks and Results
 
+The metrics used to evaluate the models are the same as the acceptance criteria in the [feasibility review](#initial-feasibility-review). To reiterate, these are malignant lesion sensitivity at the benign-escalation limit, benign escalation, matched IoU, mAP and latency. The following configurations were all tested with 3 seeds and the same splits.
+
+| Condition | Augmentation | Training images drawn | Malignant share of each epoch | Changes from `x` model |
+|:----------|:-------------|:----------------------|:------------------------------|:----------------|
+| `b0` | None | Stock Ultralytics shuffle | Natural (about 19%) | N/A |
+| `a0` | Modest | Uniformly with replacement | Natural | `b0`: Augmentation and sampling |
+| `o35` | Modest | Weighted with replacement | 35% | `a0`: Malignant share only |
+| `o50` | Modest | Weighted with replacement | 50% | `a0`: Malignant share only |
+| `a0_wd` | Modest | Uniformly with replacement | Natural | `a0`: Weight decay = `0.05` (default = `0.0005`) |
+| `a0_yolo11m` | Modest | Uniformly with replacement | Natural | `a0`: YOLO11m weights instead of YOLO11n |
+| `a0_yolo11m_wd` | Modest | Uniformly with replacement | Natural | `a0`: YOLO11m, weight decay = `0.05` |
+
 ### Baseline Model
 
-The baseline model is a COCO-pretrained YOLO11n detector trained on the training split with stock Ultralytics hyperparameters. It produces no augentation and uses a stock shuffle. With this configuration,
+The baseline model is a COCO-pretrained YOLO11n detector trained on the training split with stock Ultralytics hyperparameters. It uses stock Ultralytics shuffling and no augmentation.
 
 ### Config Tuning and Candidate Model
 
