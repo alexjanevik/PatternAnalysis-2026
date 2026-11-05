@@ -40,12 +40,14 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 | 4.2   |   [Config Tuning and Candidate Model](#config-tuning-and-candidate-model)             |
 | 4.3   |   [Comparison between Baseline and Candidate Model](#comparison-between-baseline-and-candidate-model)|
 | 5     | [Resource Profiling](#resource-profiling)                                             |
-| 5.1   |   [Training Cost](#training-cost)                                                    |
+| 5.1   |   [Training Cost](#training-cost)                                                     |
 | 5.2   |   [Inference Latency](#inference-latency)                                             |
 | 6     | [Qualitative Error Autopsy](#qualitative-error-autopsy)                               |
 | 7     | [Trade-Off Synthesis and Recommendation](#trade-off-synthesis-and-recommendation)     |
-| 8     | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure) |
-| 9     | [References](#references)                                                             |
+| 7.1   |   [Recommendation](#recommendation)                                                   |
+| 7.2   |   [Limitations and Next Steps](#limitations-and-next-steps)                           |
+| 8     | [References](#references)                                                             |
+| 9     | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure) |
 | 10    | [Citation](#citation)                                                                 |
 
 ## Project Structure
@@ -500,7 +502,7 @@ I recommend `A0` (YOLO11n with modest augmentation and sampling with replacement
 
 If this particular model were used at all, it should be as a secondary reader that flags cases for review. The operating threshold should be chosen by clinicians according to how they weigh a missed malignancy against an unnecessary referral.
 
-### Limitations and next steps
+### Limitations and Next Steps
 
 - **More data**: The largest constraint is 241 malignant images after patient-independent filtering. Recovering patient identifiers, or adding another patient-independent dataset, would help more than any tuning. There are more ISIC datasets available and particularly the newer ones are far more complete when it comes to patient identifiers. These datasets are also significantly larger than the 2018 one, so they would provide more malignant images to train on.
 - **Test `A0-cls2` properly.** It showed the best validation sensitivity (69%, ahead of `A0` in all three seeds) but cannot be separated from noise with 36 malignant validation images. Evaluating it with cross-validation or on a larger independent split would settle this.
