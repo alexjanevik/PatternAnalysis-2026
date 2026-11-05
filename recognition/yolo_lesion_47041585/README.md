@@ -24,28 +24,21 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 2. **Neck**: Features across the scales are fused to provide context for lesions of different sizes.
 3. **Head**: Bounding boxes and classifications are predicted from the fused features.
 
-| \#    | Section                                                                                       |
-| ----: | :---------------------------------------------------------------------------------------------|
-| 1     | [Project Structure](#project-structure)                                                       |
-| 2     | [Dependencies](#dependencies)                                                                 |
-| 3     | [Usage](#usage)                                                                               |
-| 3.1   |   [Install](#1-install)                                                                       |
-| 3.2   |   [Retrieve the data](#2-retrieve-the-data)                                                   |
-| 3.3   |   [Build the cohort, split and YOLO dataset](#3-build-the-cohort-split-and-yolo-dataset)      |
-| 3.4   |   [Train](#4-train)                                                                           |
-| 3.5   |   [Predict on new images](#5-predict-on-new-images)                                           |
-| 4     | [Feasibility Review](#feasibility-review)                                                     |
-| 5     | [Data Pre-processing](#data-pre-processing)                                                   |
-| 6     | [Benchmarks and Results](#benchmarks-and-results)                                             |
-| 6.1   |   [Baseline model](#baseline-model)                                                           |
-| 6.2   |   [Candidate model](#candidate-model)                                                         |
-| 6.3   |   [Comparison](#comparison)                                                                   |
-| 7     | [Resource Profiling](#resource-profiling)                                                     |
-| 8     | [Qualitative Error Autopsy](#qualitative-error-autopsy)                                       |
-| 9     | [Trade-Off Synthesis and Recommendation](#trade-off-synthesis-and-recommendation)             |
-| 10    | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure)         |
-| 11    | [References](#references)                                                                     |
-| 12    | [Citation](#citation)                                                                         |
+| \#    | Section                                                                               |
+| ----: | :-------------------------------------------------------------------------------------|
+| 1     | [Project Structure](#project-structure)                                               |
+| 2     | [Initial Feasibility Review](#initial-feasibility-review)                             |
+| 3     | [Data Pre-processing](#data-pre-processing)                                           |
+| 4     | [Benchmarks and Results](#benchmarks-and-results)                                     |
+| 4.1   |   [Baseline model](#baseline-model)                                                   |
+| 4.2   |   [Config Tuning and Candidate Model](#config-tuning-and-candidate-model)            |
+| 4.3   |   [Comparison](#comparison)                                                           |
+| 5     | [Resource Profiling](#resource-profiling)                                             |
+| 6     | [Qualitative Error Autopsy](#qualitative-error-autopsy)                               |
+| 7     | [Trade-Off Synthesis and Recommendation](#trade-off-synthesis-and-recommendation)     |
+| 8     | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure) |
+| 9     | [References](#references)                                                             |
+| 10    | [Citation](#citation)                                                                 |
 
 ## Project Structure
 
@@ -82,130 +75,7 @@ yolo_lesion_47041585/
 └── weights/
 ```
 
-## Dependencies
-
-Training was performed on the UQ Rangpur cluster (Alma Linux 8.10) using an NVIDIA A100 GPU (40GB VRAM) with CUDA 13.1.
-> **NOTE:** Pilot tests were also performed using MPS on an M1 MacBook Air, though these results are not reported here due to the huge discrepancy in performance. Just keep in mind that it is possible to run this project using MPS. Windows compatibility has not been tested.
-
-| Dependency        | Version           | Use-case                                                                                  |
-|-------------------|------------------:|-------------------------------------------------------------------------------------------|
-| Python            | 3.12              | Runtime environment                                                                       |
-| ultralytics       | 8.4.182           | YOLO11 detector, trainer, validator                                                       |
-| torch             | 2.14.1            | Tensor computation, GPU use                                                               |
-| torchvision       | 0.29.1            | Installed with ultralytics and torch (not imported directly)                              |
-| numpy             | 2.5.4             | Sampling, box geometry                                                                    |
-| pillow            | 13.0.0            | Image reading and overlays                                                                |
-| pyyaml            | 6.0.3             | Configuration files                                                                       |
-| rich              | 15.0.0            | Console output formatting                                                                 |
-
-Dependencies for these packages are all automatically installed when using a virtual environment either in `pip` with `requirements.txt` or `uv` (or equivalent) with `pyproject.toml`. The `uv.lock` file is included to ensure that the same versions of dependencies are installed across different environments.
-
-## Usage
-
-All commands are run from the project folder (`yolo_lesion_47041585/`).
-
-### 1. Install
-
-```bash
-uv sync --frozen # installs the exact versions in uv.lock (Python 3.12)
-```
-
-Without `uv`, create a Python 3.12 virtual environment and run `pip install -r requirements.txt`.
-
-### 2. Retrieve the data
-
-Before training, you will need to ensure the project has access to the ISIC2018 dataset.
-
-```bash
-# if running on UQ Rangpur cluster:
-./scripts/fetch_data.sh --rangpur
-
-# otherwise:
-./scripts/fetch_data.sh
-```
-
-This will place the ISIC2018 dataset into `dataset/` alongside `metadata_raw.csv`.
-
-> **NOTE:** The training images and masks available on Rangpur are `_x2` versions. These are not available from the public ISIC archive, so the results described here are not entirely reproducible without upscaled images. Using the original images will likely provide better results due to the masks being truly binary.
-
-### 3. Build the cohort, split and YOLO dataset
-
-```bash
-uv run python -m yolo_lesion_47041585.audit [--source dataset] [--output artifacts/isic2018]
-```
-
-This builds the cohort, checks each image against its mask, derives the bounding boxes, splits the images 70/15/15 by patient and exports the result for YOLO. It stops at the first failed check and needs a new or empty output folder. It writes to `artifacts/isic2018`.
-
-| File                              | Contents                                                                   |
-|-----------------------------------|----------------------------------------------------------------------------|
-| `yolo/`                           | `dataset.yaml`, plus `images/` and `labels/` for `train`, `val` and `test` |
-| `split_manifest.csv`              | Split, patient, class and box for every retained image                     |
-| `cohort.csv`, `exclusions.csv`    | The retained images and why others were excluded                           |
-| `summary.json`                    | Counts and the hashes of the raw metadata and split                        |
-
-The images in `yolo/` are symlinks to absolute paths, so **run this on the machine you will train on**. Do not copy `artifacts/` between machines.
-
-### 4. Train
-
-Each run is one condition, defined by layering config files, with the condition file last:
-
-```bash
-uv run train --config configs/base.yaml --config configs/{CONFIG}.yaml
-```
-
-| Condition | Augmentation  | Training images drawn         | Malignant share of each epoch |
-|-----------|---------------|-------------------------------|-------------------------------|
-| `b0`      | none          | stock Ultralytics shuffle     | natural (about 19%)           |
-| `a0`      | modest        | with replacement, uniformly   | natural                       |
-| `o35`     | modest        | with replacement, weighted    | 35%                           |
-| `o50`     | modest        | with replacement, weighted    | 50%                           |
-
-`b0` is the baseline model. It differs from `a0` in two ways at once, so it is not a controlled comparison. The other three conditions are controlled comparisons.
-
-The first run downloads `weights/yolo11n.pt` (COCO-pretrained YOLO11n).
-
-Options:
-
-| Option                    | Effect                                           |
-|---------------------------|--------------------------------------------------|
-| `--pilot`                 | 3-epoch smoke test. the run is named `...-pilot` |
-| `--device cpu\|mps\|0`    | Choose the device (default: Ultralytics decides) |
-
-As mentioned prior, MPS is supported but not recommended. It uses a smaller batch size so the results are not comparable to GPU runs.
-
-A run writes `runs/<condition>-s<seed>/` (it will not overwrite an existing one):
-
-| File                                   | Contents                                                                  |
-|----------------------------------------|---------------------------------------------------------------------------|
-| `weights/best.pt`, `last.pt`           | Best checkpoint by validation mAP50:95, and the last epoch                |
-| `config.resolved.yaml`, `metadata.json`| The exact settings, split and checkpoint hashes, library and GPU versions |
-| `results.csv`                          | Losses and validation metrics for each epoch                              |
-| `result.json`                          | Epoch and validation times, peak GPU memory, best mAP50:95                |
-| `sampling.csv`                         | Per epoch, how many malignant images the sampler drew (sampled runs only) |
-
-On the Rangpur cluster, submit a slurm script from the project folder:
-
-```bash
-sbatch scripts/train.slurm configs/{CONFIG}.yaml # add --pilot for a smoke test
-```
-
-The log is written to `slurm-yolo-lesion-<jobid>.out` in the project folder.
-
-### 5. Predict on new images
-
-```bash
-uv run predict --checkpoint runs/{RUN}/weights/best.pt \
-    --images {path/to/images} --output predictions
-```
-
-No masks or labels are needed. The output folder must be new or empty. It contains:
-
-- `detections.csv`: every box at confidence 0.001 or above, as `image_id, x_center, y_center, width, height, class_id, class_name, confidence`. Box values are fractions of the original image's width and height.
-- `overlays/`: each image with its boxes drawn (green benign, red malignant). Only boxes at `--overlay-conf` (default 0.25) or above are drawn.
-
-The same region can appear twice - once per class - because each class that scores above the threshold keeps its own box. The confidence of the malignant box is what the triage thresholds act on.
-
-## Feasibility Review
+## Initial Feasibility Review
 
 ### User need, scope and acceptance criteria
 
@@ -224,7 +94,7 @@ To consider this project a success, the following acceptance criteria must be me
 
 ### Model choice and course concepts
 
-The chosen detector will be YOLO11 due to its ability to predict bounding boxes and class labels within a single detection pass. Bounding boxes will be derived by training with the supplied segmentation masks in the ISIC2018 dataset. The corresponding image metadata will be used to train the classifier to make binary predictions - either "benign" or "malignant". A COCO-pretrained YOLO11n detector tuned on the training split will be used as the baseline detector. The baseline model will be a COCO-pretrained YOLO11n detector tuned on the training split. It will have a fixed configuration and no further tuning. This will be used for testing the project's runtime and VRAM constraints. Individually motivated tweaks will be made to tune the candidate model based on early failure cases. If tuning YOLO11n does not meet the performance targets, YOLO11s or YOLO11m will be considered within the computing budget.
+The chosen detector will be YOLO11 due to its ability to predict bounding boxes and class labels within a single detection pass. Bounding boxes will be derived by training with the supplied segmentation masks in the ISIC2018 dataset. The corresponding image metadata will be used to train the classifier to make binary predictions - either "benign" or "malignant". A COCO-pretrained YOLO11n detector tuned on the training split will be used as the baseline detector. It will have a fixed configuration and no further tuning. This will be used for testing the project's runtime and VRAM constraints. Individually motivated tweaks will be made to tune the candidate model based on early failure cases. If tuning YOLO11n does not meet the performance targets, YOLO11s or YOLO11m will be considered within the computing budget.
 
 This task requires class prediction, independent evaluation, patient-level splitting and memory/runtime trade-offs - all concepts covered in COMP3710. Using the YOLO11 detector qualifies this project as **Normal Difficulty**.
 
@@ -256,9 +126,9 @@ The smoke test will measure epoch time and peak VRAM usage to set an epoch limit
 
 ## Benchmarks and Results
 
-### Baseline model
+### Baseline Model
 
-### Candidate model
+### Config Tuning and Candidate Model
 
 ### Comparison
 
@@ -269,6 +139,25 @@ The smoke test will measure epoch time and peak VRAM usage to set an epoch limit
 ## Trade-Off Synthesis and Recommendation
 
 ## Artificial Intelligence Usage Disclosure
+
+In the development of this project, Claude Sonnet 5.5 was used to assist in several areas, including by not strictly limited to:
+
+- Docstring generation and formatting (prompted to follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)) and bulk comments for YOLO configurations.
+- In-depth explanations of specific concepts and outputs, such as:
+  - YOLO11 architecture
+  - `json` and `csv` dumps of results
+  - Potential effects of tuning different hyperparameters on model performance. Due to the set budget and time requirements, many different configurations of the model could not be tested. Many of my suggested configurations were expected by Claude to yield low value, and these were unfortunately excluded from testing. All tested hyperparameter choices were made by myself and can be justified by my previous ML experience and understanding of the topics.
+- Planning review. I produced a very in-depth project plan prior to development based on my preliminary data audit and self-determined requirements in the [initial feasibility review](#initial-feasibility-review). This plan included basic requirements for each module and the expected flow of data. It was then grilled and reviewed by Claude to ensure it was consistent and left no room for ambiguity.
+- Code boilerplating. Based on the project plan, modules were prefilled with boilerplate functions and classes to hold me to a strict implementation plan. It should be noted that it would not be feasible to expect the foreseeing of all implementation details at the planning stage, so some boilerplate was discarded or modified as the project progressed.
+- Code review and refactoring suggestions. Specifically:
+  - My code was refactored a number of times during development and testing to improve readability.
+  - Changes were suggested in the planning stages of the project, such as using the `dataclasses` module to simplify the writing and reading of data outputs in `dataset.py` and `audit.py`. This greatly improved type safety and was scaled across other applicable modules.
+  - The use of `yaml` configuration files for hyperparameter tuning was an early suggestion when tuning the candidate model. This allowed for much faster experimentation and makes the specific changes much easier to track and read.
+- Generation of output scripts such as `profile_latency.py`, `autopsy.py`, `score.py` and `final_test.py`. These were largely written by Claude as they primarily consist of interpreting bulk output data to produce a readable result for myself to verify. This code contains very critical information and was proof read and grilled by myself to ensure understanding and correctness.
+- Complete refactoring and rewriting of visualisation scripts. After building the first visualisation script, it was obvious that it could be cleaned up and automated to make it easier for myself to customise and generate figures for the report.
+
+> [!IMPORTANT]
+> It is important to note that while AI assistance is seen in many areas of this project, the final decisions and implementation were all made and can be justified by myself. No decisions regarding data handling, model architecture, hyperparameter tuning, evaluation, etc. were blindly made by an LLM. Great care was taken to ensure that all decisions and assumptions were made based on my own testing and understanding of the project's requirements and provided data.
 
 ## References
 
