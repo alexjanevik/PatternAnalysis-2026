@@ -513,30 +513,30 @@ If this particular model were used at all, it should be as a secondary reader th
 
 ## References
 
-\[1\] P. Tschandl, C. Rosendahl, and H. Kittler, “The HAM10000 dataset,
+\[1\] P. Tschandl, C. Rosendahl, and H. Kittler, "The HAM10000 dataset,
 a large collection of multi-source dermatoscopic images of common
-pigmented skin lesions,” *Sci Data*, vol. 5, no. 1, p. 180161, Aug.
+pigmented skin lesions," *Sci Data*, vol. 5, no. 1, p. 180161, Aug.
 2018, doi:
 [10.1038/sdata.2018.161](https://doi.org/10.1038/sdata.2018.161).
 
-\[2\] N. C. F. Codella *et al.*, “Skin Lesion Analysis Toward Melanoma
+\[2\] N. C. F. Codella *et al.*, "Skin Lesion Analysis Toward Melanoma
 Detection: A Challenge at the 2017 International Symposium on Biomedical
 Imaging (ISBI), Hosted by the International Skin Imaging Collaboration
-(ISIC),” Jan. 08, 2018, *arXiv*: arXiv:1710.05006. doi:
+(ISIC)," Jan. 08, 2018, *arXiv*: arXiv:1710.05006. doi:
 [10.48550/arXiv.1710.05006](https://doi.org/10.48550/arXiv.1710.05006).
 
-\[3\] N. Codella *et al.*, “Skin Lesion Analysis Toward Melanoma
+\[3\] N. Codella *et al.*, "Skin Lesion Analysis Toward Melanoma
 Detection 2018: A Challenge Hosted by the International Skin Imaging
-Collaboration (ISIC),” Mar. 29, 2019, *arXiv*: arXiv:1902.03368. doi:
+Collaboration (ISIC)," Mar. 29, 2019, *arXiv*: arXiv:1902.03368. doi:
 [10.48550/arXiv.1902.03368](https://doi.org/10.48550/arXiv.1902.03368).
 
-\[4\] M. Raimbekov and G. Jocher, “YOLO Architecture Explained: From
-YOLOv3 to YOLO26,” Ultralytics Docs. \[Online\]. Available:
+\[4\] M. Raimbekov and G. Jocher, "YOLO Architecture Explained: From
+YOLOv3 to YOLO26," Ultralytics Docs. \[Online\]. Available:
 <https://docs.ultralytics.com/guides/yolo-architecture>.
 
 \[5\] A. Imran, "Mastering YOLO: Proven Steps to Train, Validate, Deploy, and Optimize," Clarion Analytics. \[Online\]. Available: <https://clarion.ai/mastering-yolo-train-validate-deploy-and-optimize/>.
 
-\[6\] D. Rapeti and V. D. Reddy, “A Multi Range Morphological Model on Dermoscopy Images with Edge Based Segmentation for Image Quality Enhancement for Skin Lesion Classification,” RIA, vol. 37, no. 2, pp. 331–339, Apr. 2023, doi: 10.18280/ria.370211.
+\[6\] D. Rapeti and V. D. Reddy, "A Multi Range Morphological Model on Dermoscopy Images with Edge Based Segmentation for Image Quality Enhancement for Skin Lesion Classification," RIA, vol. 37, no. 2, pp. 331–339, Apr. 2023, doi: 10.18280/ria.370211.
 
 ## Artificial Intelligence Usage Disclosure
 
@@ -569,4 +569,5 @@ If you use this project in your research, please cite:
     author={Alex Janevik},
     year={2026},
     url={https://github.com/alexjanevik/PatternAnalysis-2026/tree/topic-recognition/recognition/yolo_lesion_47041585}
+}
 ```
