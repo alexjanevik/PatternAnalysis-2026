@@ -123,11 +123,6 @@ def match_detections(
     return MatchResult(tuple(matches), tuple(false_positives), misses)
 
 
-def evaluate_detection(*args: Any, **kwargs: Any) -> Any:
-    """mAP50, mAP50:95, precision, recall and per-class matched IoU."""
-    raise NotImplementedError("TODO")
-
-
 @dataclass(frozen=True)
 class BootstrapResult:
     """The statistics of a patient-cluster bootstrap.
@@ -189,15 +184,12 @@ def bootstrap_by_patient(
     return BootstrapResult(draws, n_valid, repeats)
 
 
-def percentile_interval(values: Sequence[float], level: float = 0.95) -> tuple[float, float]:
+def percentile_interval(
+    values: Sequence[float], level: float = 0.95
+) -> tuple[float, float]:
     """The central `level` interval of bootstrap draws (2.5th to 97.5th percentile)."""
     if not values:
         raise ValueError("No draws to summarise.")
     tail = (1 - level) / 2 * 100
     low, high = np.percentile(values, [tail, 100 - tail])
     return float(low), float(high)
-
-
-def profile_inference(*args: Any, **kwargs: Any) -> Any:
-    """Batch-1 latency including preprocessing, transfers and post-processing."""
-    raise NotImplementedError("TODO")

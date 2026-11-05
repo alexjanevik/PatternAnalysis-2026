@@ -86,19 +86,3 @@ def draw_detections(
             fill=colour,
         )
     return canvas
-
-
-def render_case_comparison(*args: Any, **kwargs: Any) -> Any:
-    raise NotImplementedError("TODO: overlays of native/transformed/predicted boxes")
-
-
-def plot_training_history(*args: Any, **kwargs: Any) -> Any:
-    raise NotImplementedError("TODO")
-
-
-def plot_tradeoff(*args: Any, **kwargs: Any) -> Any:
-    raise NotImplementedError("TODO")
-
-
-def summarise_results(*args: Any, **kwargs: Any) -> Any:
-    raise NotImplementedError("TODO")
