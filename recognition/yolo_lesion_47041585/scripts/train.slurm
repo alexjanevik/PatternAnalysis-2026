@@ -9,7 +9,7 @@
 
 # Usage, from the project folder:
 # sbatch scripts/train.slurm configs/{config}.yaml [--pilot] [--seed N]
-# e.g. sbatch scripts/train.slurm configs/A0-s47041585.yaml --pilot --seed 47041585
+# e.g. sbatch scripts/train.slurm configs/a0.yaml --pilot --seed 47041585
 
 module load cuda/11.1
 set -euo pipefail
