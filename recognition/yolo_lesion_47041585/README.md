@@ -40,12 +40,12 @@ Training YOLO11 on the ISIC2018 dataset follows the 3 core stages of the YOLO11 
 | 4.2   |   [Config Tuning and Candidate Model](#config-tuning-and-candidate-model)             |
 | 4.3   |   [Comparison between Baseline and Candidate Model](#comparison-between-baseline-and-candidate-model)|
 | 5     | [Resource Profiling](#resource-profiling)                                             |
-| 5.1   |   [Training Cost](#training-cost)                                                     |
-| 5.2   |   [Inference Latency](#inference-latency)                                             |
+| 5.1   |   [Training Cost](#training-cost)                                                     |
+| 5.2   |   [Inference Latency](#inference-latency)                                             |
 | 6     | [Qualitative Error Autopsy](#qualitative-error-autopsy)                               |
 | 7     | [Trade-Off Synthesis and Recommendation](#trade-off-synthesis-and-recommendation)     |
-| 7.1   |   [Recommendation](#recommendation)                                                   |
-| 7.2   |   [Limitations and Next Steps](#limitations-and-next-steps)                           |
+| 7.1   |   [Recommendation](#recommendation)                                                   |
+| 7.2   |   [Limitations and Next Steps](#limitations-and-next-steps)                           |
 | 8     | [References](#references)                                                             |
 | 9     | [Artificial Intelligence Usage Disclosure](#artificial-intelligence-usage-disclosure) |
 | 10    | [Citation](#citation)                                                                 |
