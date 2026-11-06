@@ -8,19 +8,19 @@
 
 ---
 
-This page covers how to rebuild everything in the report: the dataset split, every trained model, the validation scores, the frozen test evaluation, the latency measurements, the failure-case panels and all figures. All commands are run from the project folder (`yolo_lesion_47041585/`). Install the project and fetch the data first (see [Installation](./INSTALLATION.md)).
+This page covers how to rebuild everything in the report: the dataset split, every trained model, the validation scores, the frozen test evaluation, the latency measurements, the failure-case panels and all figures. All commands are run from the project folder (`yolo_lesion_47041585/`). Install the project and fetch the data first (see [Installation](./INSTALLATION.md), it also covers running project files without `uv`).
 
 ## Pipeline overview
 
-| Step | Command | Main outputs | Needed by |
-|:--|:--|:--|:--|
-| 1. [Audit and split](#1-run-the-data-audit) | `python -m yolo_lesion_47041585.audit` | `artifacts/isic2018/` | everything |
-| 2. [Train](#2-train-the-models) | `train --config configs/<name>.yaml` | `runs/<condition>-s<seed>/` | 3, 4, 6, 7 |
-| 3. [Score on validation](#3-score-the-runs-on-validation) | `scripts/score.py` | `assets/scores.md`, `artifacts/scores.json` and CSVs | 4, 8 |
-| 4. [Freeze and test](#4-freeze-the-thresholds-and-evaluate-on-test) | `scripts/final_test.py` | `assets/selection.json`, `assets/test-results.*` | 6, 8 |
-| 5. [Latency](#5-measure-latency) | `scripts/profile_latency.py` | `artifacts/latency*.json` | report only |
-| 6. [Failure cases](#6-draw-the-failure-cases) | `scripts/autopsy.py` | `artifacts/autopsy/` | report only |
-| 7. [Figures](#7-regenerate-the-figures) | `scripts/visualise/*.py` | `assets/*.png` | report only |
+| # | Step | Command | Main outputs | Needed by |
+|--:|:--|:--|:--|:--|
+| 1 | [Audit and split](#1-run-the-data-audit) | `uv run python -m yolo_lesion_47041585.audit` | `artifacts/isic2018/` | everything |
+| 2 | [Train](#2-train-the-models) | `uv run train --config configs/<config>.yaml` | `runs/<condition>-s<seed>/` | 3, 4, 6, 7 |
+| 3 | [Score on validation](#3-score-the-runs-on-validation) | `uv run python scripts/score.py` | `assets/scores.md`, `artifacts/scores.json` and CSVs | 4, 8 |
+| 4 | [Freeze and test](#4-freeze-the-thresholds-and-evaluate-on-test) | `uv run python scripts/final_test.py` | `assets/selection.json`, `assets/test-results.*` |6, 8 |
+| 5 | [Latency](#5-measure-latency) | `uv run python scripts/profile_latency.py` | `artifacts/latency*.json` | report only |
+| 6 | [Failure cases](#6-draw-the-failure-cases) | `uv run python scripts/autopsy.py` | `artifacts/autopsy/` | report only |
+| 7 | [Figures](#7-regenerate-the-figures) | `uv run python scripts/visualise/<name>.py` | `assets/*.png` | report only |
 
 Run the steps in this order. Steps 1–2 and the test run in step 4 need a GPU. The rest can run on a CPU if the detection caches exist (see [Notes](#notes-and-troubleshooting)).
 
@@ -48,6 +48,8 @@ By default, data is read from `dataset/` and written to `artifacts/isic2018`. Th
 
 > [!IMPORTANT]
 > Images in `yolo/` are symlinks to absolute paths. **Run this on the machine you will train on.** Do not copy `artifacts/` between machines.
+
+<sub><i>In hindsight, `audit.py` should probably be a script rather than a module. But that's okay.</i></sub>
 
 ## 2. Train the models
 
